@@ -405,7 +405,7 @@ exports.submitRating = async (req, res) => {
       });
       await newRating.save();
     }
-    console.log(prodid);
+
     const ratings = await Rating.find({
       prodid: new ObjectId(prodid),
       estoreid: new ObjectId(estoreid),
@@ -413,7 +413,7 @@ exports.submitRating = async (req, res) => {
 
     const finalRatings =
       ratings.reduce((partialSum, a) => partialSum + a.rate, 0) +
-      parseFloat(rateDefault.ratings);
+      parseFloat(rateDefault.ratings) * parseFloat(rateDefault.ratingCount);
     const finalRatingCount =
       parseFloat(ratings.length) + parseFloat(rateDefault.ratingCount);
     const finalRating = finalRatings / finalRatingCount;
@@ -433,7 +433,11 @@ exports.submitRating = async (req, res) => {
       { new: true }
     );
 
-    res.json({ ratings: finalRating, ratingCount: finalRatingCount });
+    res.json({
+      ratings: finalRating,
+      ratingCount: finalRatingCount,
+      rateDefault,
+    });
   } catch (error) {
     res.json({ err: "Updating product failed. " + error.message });
   }
