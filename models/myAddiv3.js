@@ -8,6 +8,10 @@ const myAddiv3Schema = new mongoose.Schema({
     minlength: 2,
     maxlength: 255,
   },
+  zipcode: {
+    type: String,
+    default: "",
+  },
   estoreid: {
     type: Object,
     required: true,
@@ -27,13 +31,13 @@ const myAddiv3Schema = new mongoose.Schema({
   minorder: String,
   maxorder: String,
   delfee: { type: String, default: "0" },
-  delfeeType: {
+  delfeetype: {
     type: String,
     enum: ["percent", "number"],
     default: "percent",
   },
   discount: { type: String, default: "0" },
-  discountType: {
+  discounttype: {
     type: String,
     enum: ["percent", "number"],
     default: "percent",

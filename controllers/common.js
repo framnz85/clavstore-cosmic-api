@@ -1,13 +1,18 @@
 const ObjectId = require("mongoose").Types.ObjectId;
 const Category = require("../models/category");
+const Brand = require("../models/brand");
 const Raffle = require("../models/raffle");
 const User = require("../models/user");
+const Product = require("../models/product");
 
 exports.populateProduct = async (products, estoreid) => {
   let categories = [];
+  let brands = [];
+  let newProducts = [];
 
   products = products.map((product) => {
     categories.push(product.category);
+    brands.push(product.brand);
     return product;
   });
 
@@ -16,16 +21,45 @@ exports.populateProduct = async (products, estoreid) => {
     estoreid: new ObjectId(estoreid),
   }).exec();
 
+  const brandList = await Brand.find({
+    _id: { $in: brands },
+    estoreid: new ObjectId(estoreid),
+  }).exec();
+
   products = products.map((product) => {
-    return {
-      ...(product._doc ? product._doc : product),
-      category: categoryList.filter(
-        (cat) => cat._id.toString() === product.category.toString()
-      )[0],
-    };
+    if (product.brand) {
+      return {
+        ...(product._doc ? product._doc : product),
+        category: categoryList.find(
+          (cat) => cat._id.toString() === product.category.toString()
+        ),
+        brand: brandList.find(
+          (bra) => bra._id.toString() === product.brand.toString()
+        ),
+      };
+    } else {
+      return {
+        ...(product._doc ? product._doc : product),
+        category: categoryList.find(
+          (cat) => cat._id.toString() === product.category.toString()
+        ),
+      };
+    }
   });
 
-  return products;
+  for (i = 0; i < products.length; i++) {
+    const variants = products[i].brand
+      ? await Product.find({
+          brand: new ObjectId(products[i].brand),
+          estoreid: new ObjectId(estoreid),
+        })
+          .select("_id slug variantName")
+          .exec()
+      : [];
+    newProducts.push({ ...products[i], variants });
+  }
+
+  return newProducts;
 };
 
 exports.createRaffle = async (

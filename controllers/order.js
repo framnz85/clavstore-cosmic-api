@@ -312,6 +312,7 @@ exports.saveCartOrder = async (req, res) => {
   const orderType = req.body.orderType;
   const delfee = req.body.delfee;
   const discount = req.body.discount;
+  const servefee = req.body.servefee;
   const addDiscount = req.body.addDiscount;
   const cash = req.body.cash;
   const paymentOption = req.body.paymentOption;
@@ -374,6 +375,7 @@ exports.saveCartOrder = async (req, res) => {
       cartTotal: cart.cartTotal,
       delfee,
       discount,
+      servefee,
       addDiscount,
       cash,
       createdBy: user._id,

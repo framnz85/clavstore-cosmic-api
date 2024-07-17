@@ -45,6 +45,7 @@ const orderSchema = new mongoose.Schema(
     cartTotal: Number,
     delfee: Number,
     discount: Number,
+    servefee: Number,
     addDiscount: Number,
     grandTotal: Number,
     cash: Number,

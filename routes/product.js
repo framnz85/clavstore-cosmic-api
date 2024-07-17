@@ -10,6 +10,7 @@ const {
   getAdminItems,
   addProduct,
   searchProduct,
+  submitRating,
   updateProduct,
   receiveProducts,
   updateProducts,
@@ -54,6 +55,7 @@ router.post(
 router.post("/gratis/get-best-seller", getAdminItems);
 router.post("/gratis/add-product", authCheck, adminGratisCheck, addProduct);
 router.post("/gratis/search-product", searchProduct);
+router.post("/gratis/submit-rating", authCheck, submitRating);
 router.put(
   "/gratis/update-product/:prodid",
   authCheck,

@@ -17,6 +17,7 @@ const productSchema = new mongoose.Schema(
       text: true,
       index: true,
     },
+    youtubeid: String,
     slug: {
       type: String,
       lowercase: true,
@@ -30,16 +31,35 @@ const productSchema = new mongoose.Schema(
       type: Number,
       trim: true,
       maxlength: 32,
+      default: 0,
     },
     markup: {
       type: Number,
       trim: true,
       maxlength: 32,
+      default: 0,
+    },
+    markupType: {
+      type: String,
+      enum: ["percent", "number"],
+      default: "percent",
+    },
+    discount: {
+      type: Number,
+      trim: true,
+      maxlength: 32,
+      default: 0,
+    },
+    discounttype: {
+      type: String,
+      enum: ["percent", "number"],
+      default: "percent",
     },
     price: {
       type: Number,
       required: true,
       trim: true,
+      default: 0,
       maxlength: 32,
     },
     wprice: Number,
@@ -48,6 +68,11 @@ const productSchema = new mongoose.Schema(
       type: ObjectId,
       ref: "GratisCategory",
     },
+    brand: {
+      type: ObjectId,
+      ref: "GratisBrand",
+    },
+    variantName: String,
     barcode: {
       type: String,
       maxlength: 32,
@@ -67,6 +92,21 @@ const productSchema = new mongoose.Schema(
     },
     images: {
       type: Array,
+    },
+    packaging: {
+      weight: { type: Number, default: 0 },
+      length: { type: Number, default: 0 },
+      width: { type: Number, default: 0 },
+      height: { type: Number, default: 0 },
+      volume: { type: Number, default: 0 },
+    },
+    rateGroup: {
+      ratings: { type: Number, default: 0 },
+      ratingCount: { type: Number, default: 0 },
+      rateDefault: {
+        ratings: { type: Number, default: 0 },
+        ratingCount: { type: Number, default: 0 },
+      },
     },
     activate: {
       type: Boolean,

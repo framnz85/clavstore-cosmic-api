@@ -8,6 +8,10 @@ const addiv3Schema = new mongoose.Schema({
     minlength: 2,
     maxlength: 255,
   },
+  zipcode: {
+    type: String,
+    default: "",
+  },
   couid: {
     type: Object,
     required: true,

@@ -5,6 +5,8 @@ const Product = require("../models/product");
 const User = require("../models/user");
 const Category = require("../models/category");
 const Order = require("../models/order");
+const Rating = require("../models/rating");
+
 const { populateProduct } = require("./common");
 
 exports.randomItems = async (req, res) => {
@@ -367,6 +369,73 @@ exports.searchProduct = async (req, res) => {
     res.json(products);
   } catch (error) {
     res.json({ err: "Searching products failed. " + error.message });
+  }
+};
+
+exports.submitRating = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  const prodid = req.body.prodid;
+  const rate = req.body.rate;
+  const rateDefault = req.body.rateDefault;
+  const email = req.user.email;
+
+  try {
+    const user = await User.findOne({ email }).exec();
+    const checkRatingExist = await Rating.findOne({
+      userid: new ObjectId(user._id),
+      prodid: new ObjectId(prodid),
+      estoreid: new ObjectId(estoreid),
+    }).exec();
+    if (checkRatingExist) {
+      await Rating.findOneAndUpdate(
+        {
+          userid: new ObjectId(user._id),
+          prodid: new ObjectId(prodid),
+          estoreid: new ObjectId(estoreid),
+        },
+        { rate },
+        { new: true }
+      );
+    } else {
+      const newRating = new Rating({
+        userid: new ObjectId(user._id),
+        prodid: new ObjectId(prodid),
+        estoreid: new ObjectId(estoreid),
+        rate,
+      });
+      await newRating.save();
+    }
+    console.log(prodid);
+    const ratings = await Rating.find({
+      prodid: new ObjectId(prodid),
+      estoreid: new ObjectId(estoreid),
+    }).exec();
+
+    const finalRatings =
+      ratings.reduce((partialSum, a) => partialSum + a.rate, 0) +
+      parseFloat(rateDefault.ratings);
+    const finalRatingCount =
+      parseFloat(ratings.length) + parseFloat(rateDefault.ratingCount);
+    const finalRating = finalRatings / finalRatingCount;
+
+    await Product.findOneAndUpdate(
+      {
+        _id: new ObjectId(prodid),
+        estoreid: new ObjectId(estoreid),
+      },
+      {
+        rateGroup: {
+          ratings: finalRating,
+          ratingCount: finalRatingCount,
+          rateDefault,
+        },
+      },
+      { new: true }
+    );
+
+    res.json({ ratings: finalRating, ratingCount: finalRatingCount });
+  } catch (error) {
+    res.json({ err: "Updating product failed. " + error.message });
   }
 };
 

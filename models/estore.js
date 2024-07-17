@@ -87,7 +87,7 @@ const estoreSchema = new mongoose.Schema(
     minorder: String,
     maxorder: String,
     delfee: { type: String, default: "0" },
-    delfeeType: {
+    delfeetype: {
       type: String,
       enum: ["percent", "number"],
       default: "percent",
@@ -100,7 +100,7 @@ const estoreSchema = new mongoose.Schema(
     },
     delloc: String,
     discount: { type: String, default: "0" },
-    discountType: {
+    discounttype: {
       type: String,
       enum: ["percent", "number"],
       default: "percent",

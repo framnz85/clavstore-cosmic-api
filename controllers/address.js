@@ -503,11 +503,10 @@ exports.getAddiv3 = async (req, res) => {
 
 exports.updateMyAddiv3 = async (req, res) => {
   const estoreid = req.headers.estoreid;
-  const couid = req.body.couid;
   try {
     const updated = await MyAddiv3.findOneAndUpdate(
       { _id: req.params.addiv3, estoreid: new ObjectId(estoreid) },
-      { ...req.body, couid: new ObjectId(couid) },
+      req.body,
       { new: true }
     );
     res.json(updated);
@@ -520,7 +519,7 @@ exports.deleteAddiv3 = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const addiv3 = req.query.addiv3;
   try {
-    await MyAddiv3.findOneAndRemove({
+    await MyAddiv3.findOneAndDelete({
       _id: addiv3,
       estoreid: new ObjectId(estoreid),
     }).exec();
@@ -535,7 +534,7 @@ exports.deleteAddiv2 = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const addiv2 = req.query.addiv2;
   try {
-    await MyAddiv2.findOneAndRemove({
+    await MyAddiv2.findOneAndDelete({
       _id: new ObjectId(addiv2),
       estoreid: new ObjectId(estoreid),
     }).exec();
@@ -555,7 +554,7 @@ exports.deleteAddiv1 = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const addiv1 = req.query.addiv1;
   try {
-    await MyAddiv1.findOneAndRemove({
+    await MyAddiv1.findOneAndDelete({
       _id: new ObjectId(addiv1),
       estoreid: new ObjectId(estoreid),
     }).exec();
@@ -572,6 +571,7 @@ exports.deleteAddiv1 = async (req, res) => {
 
     res.json({ ok: true });
   } catch (error) {
+    console.log(error);
     res.status(400).send("Location delete failed.");
   }
 };
