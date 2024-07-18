@@ -277,6 +277,18 @@ const estoreSchema = new mongoose.Schema(
       moderator: { type: Number, default: 0 },
       cashier: { type: Number, default: 0 },
     },
+    unitName: {
+      weight: {
+        type: String,
+        enum: ["mg", "g", "kg"],
+        default: "g",
+      },
+      dimension: {
+        type: String,
+        enum: ["m", "cm", "mm"],
+        default: "m",
+      },
+    },
   },
   { timestamps: true }
 );
