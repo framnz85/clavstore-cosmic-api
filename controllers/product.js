@@ -376,6 +376,7 @@ exports.submitRating = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const prodid = req.body.prodid;
   const rate = req.body.rate;
+  const review = req.body.review;
   const rateDefault = req.body.rateDefault;
   const email = req.user.email;
 
@@ -393,7 +394,7 @@ exports.submitRating = async (req, res) => {
           prodid: new ObjectId(prodid),
           estoreid: new ObjectId(estoreid),
         },
-        { rate },
+        { rate, review },
         { new: true }
       );
     } else {
@@ -402,6 +403,7 @@ exports.submitRating = async (req, res) => {
         prodid: new ObjectId(prodid),
         estoreid: new ObjectId(estoreid),
         rate,
+        review,
       });
       await newRating.save();
     }

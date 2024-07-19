@@ -46,359 +46,625 @@ exports.listAddiv3 = async (req, res) => {
 exports.copyAllAddiv1 = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const { country, details } = req.body;
+  let couid = "";
+  let addiv1 = "";
+  let addiv2 = "";
 
   try {
-    await MyCountry.collection.insertOne({
-      ...country,
-      _id: new ObjectId(country._id),
+    const countryExist = await MyCountry.findOne({
       estoreid: new ObjectId(estoreid),
-    });
-  } catch (error) {}
+    }).exec();
 
-  const addiv1 = await Addiv1.find({}).exec();
-  addiv1
-    .map((data) => ({
-      ...data._doc,
-    }))
-    .forEach(async (data) => {
-      try {
-        await MyAddiv1.collection.insertOne({
-          ...data,
+    if (countryExist) {
+      couid = countryExist._id;
+    } else {
+      delete country._id;
+      const newCountry = new MyCountry({
+        ...country,
+        estoreid: new ObjectId(estoreid),
+      });
+      await newCountry.save();
+      couid = newCountry._id;
+    }
+
+    const addiv1s = await Addiv1.find({}).exec();
+    const newAddiv1s = [];
+
+    for (i = 0; i < addiv1s.length; i++) {
+      const origAddiv1 = addiv1s[i]._id;
+
+      const addiv1Check = await MyAddiv1.findOne({
+        estoreid: new ObjectId(estoreid),
+        couid: new ObjectId(couid),
+        name: addiv1s[i].name,
+      }).exec();
+
+      if (addiv1Check) {
+        addiv1 = addiv1Check._id;
+      } else {
+        const newAddiv1 = new MyAddiv1({
           estoreid: new ObjectId(estoreid),
-          couid: new ObjectId(data.couid),
+          couid: new ObjectId(couid),
+          name: addiv1s[i].name,
         });
-      } catch (error) {}
-    });
+        await newAddiv1.save();
+        addiv1 = newAddiv1._id;
+      }
+      newAddiv1s.push({
+        oldAddiv1: origAddiv1.toString(),
+        newAddiv1: addiv1.toString(),
+      });
+    }
 
-  const addiv2 = await Addiv2.find({}).exec();
-  addiv2
-    .map((data) => ({
-      ...data._doc,
-    }))
-    .forEach(async (data) => {
-      try {
-        await MyAddiv2.collection.insertOne({
-          ...data,
+    const addiv2s = await Addiv2.find({}).exec();
+    const newAddiv2s = [];
+
+    for (i = 0; i < addiv2s.length; i++) {
+      const origAddiv2 = addiv2s[i]._id;
+      const oldAddiv1 = newAddiv1s.find(
+        (data) => data.oldAddiv1.toString() === addiv2s[i].adDivId1.toString()
+      );
+
+      if (oldAddiv1) {
+        const addiv2Check = await MyAddiv2.findOne({
           estoreid: new ObjectId(estoreid),
-          couid: new ObjectId(data.couid),
-          adDivId1: new ObjectId(data.adDivId1),
-        });
-      } catch (error) {}
-    });
+          couid: new ObjectId(couid),
+          adDivId1: new ObjectId(oldAddiv1.newAddiv1),
+          name: addiv2s[i].name,
+        }).exec();
 
-  const addiv3 = await Addiv3.find({}).exec();
-  addiv3
-    .map((data) => ({
-      ...data._doc,
-      ...details,
-    }))
-    .forEach(async (data) => {
-      try {
-        await MyAddiv3.collection.insertOne({
-          ...data,
+        if (addiv2Check) {
+          addiv2 = addiv2Check._id;
+        } else {
+          const newAddiv2 = new MyAddiv2({
+            estoreid: new ObjectId(estoreid),
+            couid: new ObjectId(couid),
+            adDivId1: new ObjectId(oldAddiv1.newAddiv1),
+            name: addiv2s[i].name,
+          });
+          await newAddiv2.save();
+          addiv2 = newAddiv2._id;
+        }
+        newAddiv2s.push({
+          oldAddiv2: origAddiv2.toString(),
+          newAddiv2: addiv2.toString(),
+        });
+      }
+    }
+
+    const addiv3s = await Addiv3.find({}).exec();
+    for (i = 0; i < addiv3s.length; i++) {
+      const oldAddiv1 = newAddiv1s.find(
+        (data) => data.oldAddiv1.toString() === addiv3s[i].adDivId1.toString()
+      );
+      const oldAddiv2 = newAddiv2s.find(
+        (data) => data.oldAddiv2.toString() === addiv3s[i].adDivId2.toString()
+      );
+
+      if (oldAddiv1 && oldAddiv2) {
+        const addiv3Check = await MyAddiv3.findOne({
           estoreid: new ObjectId(estoreid),
-          couid: new ObjectId(data.couid),
-          adDivId1: new ObjectId(data.adDivId1),
-          adDivId2: new ObjectId(data.adDivId2),
-        });
-      } catch (error) {}
-    });
+          couid: new ObjectId(couid),
+          adDivId1: new ObjectId(oldAddiv1.newAddiv1),
+          adDivId2: new ObjectId(oldAddiv2.newAddiv2),
+          name: addiv3s[i].name,
+        }).exec();
 
-  res.json({ ok: true });
+        if (!addiv3Check) {
+          const newAddiv3 = new MyAddiv3({
+            ...details,
+            estoreid: new ObjectId(estoreid),
+            couid: new ObjectId(couid),
+            adDivId1: new ObjectId(oldAddiv1.newAddiv1),
+            adDivId2: new ObjectId(oldAddiv2.newAddiv2),
+            name: addiv3s[i].name,
+          });
+          await newAddiv3.save();
+        }
+      }
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.log(error.message);
+  }
 };
 
 exports.saveCreatedLocation1 = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const { values, details } = req.body;
   const { country, addiv1, addiv2, addiv3 } = values;
+  let couid = "";
 
   try {
-    await MyCountry.collection.insertOne({
-      ...country,
-      _id: new ObjectId(country._id),
-    });
-  } catch (error) {}
-
-  MyAddiv1.collection
-    .insertOne({
-      name: addiv1.name,
+    const countryExist = await MyCountry.findOne({
       estoreid: new ObjectId(estoreid),
-      couid: new ObjectId(country._id),
-    })
-    .then((result1) => {
-      MyAddiv2.collection
-        .insertOne({
-          name: addiv2.name,
-          estoreid: new ObjectId(estoreid),
-          couid: new ObjectId(country._id),
-          adDivId1: new ObjectId(result1.ops[0]._id),
-        })
-        .then((result2) => {
-          MyAddiv3.collection.insertOne({
-            name: addiv3.name,
-            estoreid: new ObjectId(estoreid),
-            couid: new ObjectId(country._id),
-            adDivId1: new ObjectId(result1.ops[0]._id),
-            adDivId2: new ObjectId(result2.ops[0]._id),
-            ...details,
-          });
-        });
-    });
+    }).exec();
 
-  res.json({ ok: true });
+    if (countryExist) {
+      couid = countryExist._id;
+    } else {
+      delete country._id;
+      const newCountry = new MyCountry({
+        ...country,
+        estoreid: new ObjectId(estoreid),
+      });
+      await newCountry.save();
+      couid = newCountry._id;
+    }
+
+    MyAddiv1.collection
+      .insertOne({
+        name: addiv1.name,
+        estoreid: new ObjectId(estoreid),
+        couid: new ObjectId(couid),
+      })
+      .then((result1) => {
+        MyAddiv2.collection
+          .insertOne({
+            name: addiv2.name,
+            estoreid: new ObjectId(estoreid),
+            couid: new ObjectId(couid),
+            adDivId1: new ObjectId(result1.insertedId),
+          })
+          .then((result2) => {
+            MyAddiv3.collection.insertOne({
+              name: addiv3.name,
+              estoreid: new ObjectId(estoreid),
+              couid: new ObjectId(couid),
+              adDivId1: new ObjectId(result1.insertedId),
+              adDivId2: new ObjectId(result2.insertedId),
+              ...details,
+            });
+          });
+      });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.log(error.message);
+  }
 };
 
 exports.copyAllAddiv2 = async (req, res) => {
   const estoreid = req.headers.estoreid;
-  const { country, addiv1, details } = req.body;
+  const { country, addiv1: addiv1Body, details } = req.body;
+  const origCouid = country._id;
+  let couid = "";
+  let addiv1 = "";
+  let addiv2 = "";
 
   try {
-    await MyCountry.collection.insertOne({
-      ...country,
-      _id: new ObjectId(country._id),
+    const countryExist = await MyCountry.findOne({
       estoreid: new ObjectId(estoreid),
-    });
-  } catch (error) {}
+    }).exec();
 
-  try {
-    await MyAddiv1.collection.insertOne({
-      ...addiv1,
-      _id: new ObjectId(addiv1._id),
+    if (countryExist) {
+      couid = countryExist._id;
+    } else {
+      delete country._id;
+      const newCountry = new MyCountry({
+        ...country,
+        estoreid: new ObjectId(estoreid),
+      });
+      await newCountry.save();
+      couid = newCountry._id;
+    }
+
+    const addiv1Check = await MyAddiv1.findOne({
       estoreid: new ObjectId(estoreid),
-      couid: new ObjectId(country._id),
-    });
-  } catch (error) {}
+      couid: new ObjectId(couid),
+      name: addiv1Body.name,
+    }).exec();
 
-  const addiv2 = await Addiv2.find({
-    couid: new ObjectId(country._id),
-    adDivId1: new ObjectId(addiv1._id),
-  }).exec();
-  addiv2
-    .map((data) => ({
-      ...data._doc,
-    }))
-    .forEach(async (data) => {
-      try {
-        await MyAddiv2.collection.insertOne({
-          ...data,
+    if (addiv1Check) {
+      addiv1 = addiv1Check._id;
+    } else {
+      const newAddiv1 = new MyAddiv1({
+        estoreid: new ObjectId(estoreid),
+        couid: new ObjectId(couid),
+        name: addiv1Body.name,
+      });
+      await newAddiv1.save();
+      addiv1 = newAddiv1._id;
+    }
+
+    const addiv2s = await Addiv2.find({
+      couid: new ObjectId(origCouid),
+      adDivId1: new ObjectId(addiv1Body._id),
+    }).exec();
+    const newAddiv2s = [];
+
+    for (i = 0; i < addiv2s.length; i++) {
+      const origAddiv2 = addiv2s[i]._id;
+
+      if (addiv1) {
+        const addiv2Check = await MyAddiv2.findOne({
           estoreid: new ObjectId(estoreid),
-          couid: new ObjectId(data.couid),
-          adDivId1: new ObjectId(data.adDivId1),
-        });
-      } catch (error) {}
-    });
+          couid: new ObjectId(couid),
+          adDivId1: new ObjectId(addiv1),
+          name: addiv2s[i].name,
+        }).exec();
 
-  const addiv3 = await Addiv3.find({
-    couid: new ObjectId(country._id),
-    adDivId1: new ObjectId(addiv1._id),
-  }).exec();
-  addiv3
-    .map((data) => ({
-      ...data._doc,
-      ...details,
-    }))
-    .forEach(async (data) => {
-      try {
-        await MyAddiv3.collection.insertOne({
-          ...data,
+        if (addiv2Check) {
+          addiv2 = addiv2Check._id;
+        } else {
+          const newAddiv2 = new MyAddiv2({
+            estoreid: new ObjectId(estoreid),
+            couid: new ObjectId(couid),
+            adDivId1: new ObjectId(addiv1),
+            name: addiv2s[i].name,
+          });
+          await newAddiv2.save();
+          addiv2 = newAddiv2._id;
+        }
+        newAddiv2s.push({
+          oldAddiv2: origAddiv2.toString(),
+          newAddiv2: addiv2.toString(),
+        });
+      }
+    }
+
+    const addiv3s = await Addiv3.find({
+      couid: new ObjectId(origCouid),
+      adDivId1: new ObjectId(addiv1Body._id),
+    }).exec();
+    for (i = 0; i < addiv3s.length; i++) {
+      const oldAddiv2 = newAddiv2s.find(
+        (data) => data.oldAddiv2.toString() === addiv3s[i].adDivId2.toString()
+      );
+
+      if (addiv1 && oldAddiv2) {
+        const addiv3Check = await MyAddiv3.findOne({
           estoreid: new ObjectId(estoreid),
-          couid: new ObjectId(data.couid),
-          adDivId1: new ObjectId(data.adDivId1),
-          adDivId2: new ObjectId(data.adDivId2),
-        });
-      } catch (error) {}
-    });
+          couid: new ObjectId(couid),
+          adDivId1: new ObjectId(addiv1),
+          adDivId2: new ObjectId(oldAddiv2.newAddiv2),
+          name: addiv3s[i].name,
+        }).exec();
 
-  res.json({ ok: true });
+        if (!addiv3Check) {
+          const newAddiv3 = new MyAddiv3({
+            ...details,
+            estoreid: new ObjectId(estoreid),
+            couid: new ObjectId(couid),
+            adDivId1: new ObjectId(addiv1),
+            adDivId2: new ObjectId(oldAddiv2.newAddiv2),
+            name: addiv3s[i].name,
+          });
+          await newAddiv3.save();
+        }
+      }
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.log(error.message);
+  }
 };
 
 exports.saveCreatedLocation2 = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const { values, details } = req.body;
-  const { country, addiv1, addiv2, addiv3 } = values;
+  const { country, addiv1: addiv1Body, addiv2, addiv3 } = values;
+  let couid = "";
+  let addiv1 = "";
 
   try {
-    await MyCountry.collection.insertOne({
-      ...country,
-      _id: new ObjectId(country._id),
+    const countryExist = await MyCountry.findOne({
       estoreid: new ObjectId(estoreid),
-    });
-  } catch (error) {}
+    }).exec();
 
-  try {
-    await MyAddiv1.collection.insertOne({
-      ...addiv1,
-      _id: new ObjectId(addiv1._id),
-      estoreid: new ObjectId(estoreid),
-      couid: new ObjectId(country._id),
-    });
-  } catch (error) {}
-
-  MyAddiv2.collection
-    .insertOne({
-      name: addiv2.name,
-      estoreid: new ObjectId(estoreid),
-      couid: new ObjectId(country._id),
-      adDivId1: new ObjectId(addiv1._id),
-    })
-    .then((result2) => {
-      MyAddiv3.collection.insertOne({
-        name: addiv3.name,
+    if (countryExist) {
+      couid = countryExist._id;
+    } else {
+      delete country._id;
+      const newCountry = new MyCountry({
+        ...country,
         estoreid: new ObjectId(estoreid),
-        couid: new ObjectId(country._id),
-        adDivId1: new ObjectId(addiv1._id),
-        adDivId2: new ObjectId(result2.ops[0]._id),
-        ...details,
       });
-    });
+      await newCountry.save();
+      couid = newCountry._id;
+    }
 
-  res.json({ ok: true });
+    const addiv1Check = await MyAddiv1.findOne({
+      estoreid: new ObjectId(estoreid),
+      couid: new ObjectId(couid),
+      name: addiv1Body.name,
+    }).exec();
+
+    if (addiv1Check) {
+      addiv1 = addiv1Check._id;
+    } else {
+      const newAddiv1 = new MyAddiv1({
+        estoreid: new ObjectId(estoreid),
+        couid: new ObjectId(couid),
+        name: addiv1Body.name,
+      });
+      await newAddiv1.save();
+      addiv1 = newAddiv1._id;
+    }
+
+    MyAddiv2.collection
+      .insertOne({
+        name: addiv2.name,
+        estoreid: new ObjectId(estoreid),
+        couid: new ObjectId(couid),
+        adDivId1: new ObjectId(addiv1),
+      })
+      .then((result2) => {
+        MyAddiv3.collection.insertOne({
+          name: addiv3.name,
+          estoreid: new ObjectId(estoreid),
+          couid: new ObjectId(couid),
+          adDivId1: new ObjectId(addiv1),
+          adDivId2: new ObjectId(result2.insertedId),
+          ...details,
+        });
+      });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.log(error.message);
+  }
 };
 
 exports.copyAllAddiv3 = async (req, res) => {
   const estoreid = req.headers.estoreid;
-  const { country, addiv1, addiv2, details } = req.body;
+  const { country, addiv1: addiv1Body, addiv2: addiv2Body, details } = req.body;
+  const origCouid = country._id;
+  let couid = "";
+  let addiv1 = "";
+  let addiv2 = "";
 
   try {
-    await MyCountry.collection.insertOne({
-      ...country,
-      _id: new ObjectId(country._id),
+    const countryExist = await MyCountry.findOne({
       estoreid: new ObjectId(estoreid),
-    });
-  } catch (error) {}
+    }).exec();
 
-  try {
-    await MyAddiv1.collection.insertOne({
-      ...addiv1,
-      _id: new ObjectId(addiv1._id),
+    if (countryExist) {
+      couid = countryExist._id;
+    } else {
+      delete country._id;
+      const newCountry = new MyCountry({
+        ...country,
+        estoreid: new ObjectId(estoreid),
+      });
+      await newCountry.save();
+      couid = newCountry._id;
+    }
+
+    const addiv1Check = await MyAddiv1.findOne({
       estoreid: new ObjectId(estoreid),
-      couid: new ObjectId(country._id),
-    });
-  } catch (error) {}
+      couid: new ObjectId(couid),
+      name: addiv1Body.name,
+    }).exec();
 
-  try {
-    await MyAddiv2.collection.insertOne({
-      ...addiv2,
-      _id: new ObjectId(addiv2._id),
+    if (addiv1Check) {
+      addiv1 = addiv1Check._id;
+    } else {
+      const newAddiv1 = new MyAddiv1({
+        estoreid: new ObjectId(estoreid),
+        couid: new ObjectId(couid),
+        name: addiv1Body.name,
+      });
+      await newAddiv1.save();
+      addiv1 = newAddiv1._id;
+    }
+
+    const addiv2Check = await MyAddiv2.findOne({
       estoreid: new ObjectId(estoreid),
-      couid: new ObjectId(country._id),
-      adDivId1: new ObjectId(addiv1._id),
-    });
-  } catch (error) {}
+      couid: new ObjectId(couid),
+      adDivId1: new ObjectId(addiv1),
+      name: addiv2Body.name,
+    }).exec();
 
-  const addiv3 = await Addiv3.find({
-    couid: new ObjectId(country._id),
-    adDivId1: new ObjectId(addiv1._id),
-    adDivId2: new ObjectId(addiv2._id),
-  }).exec();
-  addiv3
-    .map((data) => ({
-      ...data._doc,
-      ...details,
-    }))
-    .forEach(async (data) => {
-      try {
-        await MyAddiv3.collection.insertOne({
-          ...data,
+    if (addiv2Check) {
+      addiv2 = addiv2Check._id;
+    } else {
+      const newAddiv2 = new MyAddiv2({
+        estoreid: new ObjectId(estoreid),
+        couid: new ObjectId(couid),
+        adDivId1: new ObjectId(addiv1),
+        name: addiv2Body.name,
+      });
+      await newAddiv2.save();
+      addiv2 = newAddiv2._id;
+    }
+
+    const addiv3s = await Addiv3.find({
+      couid: new ObjectId(origCouid),
+      adDivId1: new ObjectId(addiv1Body._id),
+      adDivId2: new ObjectId(addiv2Body._id),
+    }).exec();
+    for (i = 0; i < addiv3s.length; i++) {
+      if (addiv1 && addiv2) {
+        const addiv3Check = await MyAddiv3.findOne({
           estoreid: new ObjectId(estoreid),
-          couid: new ObjectId(data.couid),
-          adDivId1: new ObjectId(data.adDivId1),
-          adDivId2: new ObjectId(data.adDivId2),
-        });
-      } catch (error) {}
-    });
+          couid: new ObjectId(couid),
+          adDivId1: new ObjectId(addiv1),
+          adDivId2: new ObjectId(addiv2),
+          name: addiv3s[i].name,
+        }).exec();
 
-  res.json({ ok: true });
+        if (!addiv3Check) {
+          const newAddiv3 = new MyAddiv3({
+            ...details,
+            estoreid: new ObjectId(estoreid),
+            couid: new ObjectId(couid),
+            adDivId1: new ObjectId(addiv1),
+            adDivId2: new ObjectId(addiv2),
+            name: addiv3s[i].name,
+          });
+          await newAddiv3.save();
+        }
+      }
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.log(error.message);
+  }
 };
 
 exports.saveCreatedLocation3 = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const { values, details } = req.body;
-  const { country, addiv1, addiv2, addiv3 } = values;
+  const { country, addiv1: addiv1Body, addiv2: addiv2Body, addiv3 } = values;
+  let couid = "";
+  let addiv1 = "";
+  let addiv2 = "";
 
   try {
-    await MyCountry.collection.insertOne({
-      ...country,
-      _id: new ObjectId(country._id),
+    const countryExist = await MyCountry.findOne({
       estoreid: new ObjectId(estoreid),
-    });
-  } catch (error) {}
+    }).exec();
 
-  try {
-    await MyAddiv1.collection.insertOne({
-      ...addiv1,
-      _id: new ObjectId(addiv1._id),
+    if (countryExist) {
+      couid = countryExist._id;
+    } else {
+      delete country._id;
+      const newCountry = new MyCountry({
+        ...country,
+        estoreid: new ObjectId(estoreid),
+      });
+      await newCountry.save();
+      couid = newCountry._id;
+    }
+
+    const addiv1Check = await MyAddiv1.findOne({
       estoreid: new ObjectId(estoreid),
-      couid: new ObjectId(country._id),
-    });
-  } catch (error) {}
+      couid: new ObjectId(couid),
+      name: addiv1Body.name,
+    }).exec();
 
-  try {
-    await MyAddiv2.collection.insertOne({
-      ...addiv2,
-      _id: new ObjectId(addiv2._id),
+    if (addiv1Check) {
+      addiv1 = addiv1Check._id;
+    } else {
+      const newAddiv1 = new MyAddiv1({
+        estoreid: new ObjectId(estoreid),
+        couid: new ObjectId(couid),
+        name: addiv1Body.name,
+      });
+      await newAddiv1.save();
+      addiv1 = newAddiv1._id;
+    }
+
+    const addiv2Check = await MyAddiv2.findOne({
       estoreid: new ObjectId(estoreid),
-      couid: new ObjectId(country._id),
-      adDivId1: new ObjectId(addiv1._id),
+      couid: new ObjectId(couid),
+      adDivId1: new ObjectId(addiv1),
+      name: addiv2Body.name,
+    }).exec();
+
+    if (addiv2Check) {
+      addiv2 = addiv2Check._id;
+    } else {
+      const newAddiv2 = new MyAddiv2({
+        estoreid: new ObjectId(estoreid),
+        couid: new ObjectId(couid),
+        adDivId1: new ObjectId(addiv1),
+        name: addiv2Body.name,
+      });
+      await newAddiv2.save();
+      addiv2 = newAddiv2._id;
+    }
+
+    MyAddiv3.collection.insertOne({
+      name: addiv3.name,
+      estoreid: new ObjectId(estoreid),
+      couid: new ObjectId(couid),
+      adDivId1: new ObjectId(addiv1),
+      adDivId2: new ObjectId(addiv2),
+      ...details,
     });
-  } catch (error) {}
 
-  MyAddiv3.collection.insertOne({
-    name: addiv3.name,
-    estoreid: new ObjectId(estoreid),
-    couid: new ObjectId(country._id),
-    adDivId1: new ObjectId(addiv1._id),
-    adDivId2: new ObjectId(addiv2._id),
-    ...details,
-  });
-
-  res.json({ ok: true });
+    res.json({ ok: true });
+  } catch (error) {
+    console.log(error.message);
+  }
 };
 
 exports.saveLocation3 = async (req, res) => {
   const estoreid = req.headers.estoreid;
-  const { country, addiv1, addiv2, addiv3, details } = req.body;
+  const {
+    country,
+    addiv1: addiv1Body,
+    addiv2: addiv2Body,
+    addiv3,
+    details,
+  } = req.body;
+  let couid = "";
+  let addiv1 = "";
+  let addiv2 = "";
 
   try {
-    await MyCountry.collection.insertOne({
-      ...country,
-      _id: new ObjectId(country._id),
+    const countryExist = await MyCountry.findOne({
       estoreid: new ObjectId(estoreid),
-    });
-  } catch (error) {}
+    }).exec();
 
-  try {
-    await MyAddiv1.collection.insertOne({
-      ...addiv1,
-      _id: new ObjectId(addiv1._id),
+    if (countryExist) {
+      couid = countryExist._id;
+    } else {
+      delete country._id;
+      const newCountry = new MyCountry({
+        ...country,
+        estoreid: new ObjectId(estoreid),
+      });
+      await newCountry.save();
+      couid = newCountry._id;
+    }
+
+    const addiv1Check = await MyAddiv1.findOne({
       estoreid: new ObjectId(estoreid),
-      couid: new ObjectId(country._id),
-    });
-  } catch (error) {}
+      couid: new ObjectId(couid),
+      name: addiv1Body.name,
+    }).exec();
 
-  try {
-    await MyAddiv2.collection.insertOne({
-      ...addiv2,
-      _id: new ObjectId(addiv2._id),
+    if (addiv1Check) {
+      addiv1 = addiv1Check._id;
+    } else {
+      const newAddiv1 = new MyAddiv1({
+        estoreid: new ObjectId(estoreid),
+        couid: new ObjectId(couid),
+        name: addiv1Body.name,
+      });
+      await newAddiv1.save();
+      addiv1 = newAddiv1._id;
+    }
+
+    const addiv2Check = await MyAddiv2.findOne({
       estoreid: new ObjectId(estoreid),
-      couid: new ObjectId(country._id),
-      adDivId1: new ObjectId(addiv1._id),
-    });
-  } catch (error) {}
+      couid: new ObjectId(couid),
+      adDivId1: new ObjectId(addiv1),
+      name: addiv2Body.name,
+    }).exec();
 
-  try {
+    if (addiv2Check) {
+      addiv2 = addiv2Check._id;
+    } else {
+      const newAddiv2 = new MyAddiv2({
+        estoreid: new ObjectId(estoreid),
+        couid: new ObjectId(couid),
+        adDivId1: new ObjectId(addiv1),
+        name: addiv2Body.name,
+      });
+      await newAddiv2.save();
+      addiv2 = newAddiv2._id;
+    }
+
     await MyAddiv3.collection.insertOne({
-      ...addiv3,
-      _id: new ObjectId(addiv3._id),
+      name: addiv3.name,
       estoreid: new ObjectId(estoreid),
-      couid: new ObjectId(country._id),
-      adDivId1: new ObjectId(addiv1._id),
-      adDivId2: new ObjectId(addiv2._id),
+      couid: new ObjectId(couid),
+      adDivId1: new ObjectId(addiv1),
+      adDivId2: new ObjectId(addiv2),
       ...details,
     });
-  } catch (error) {}
 
-  res.json({ ok: true });
+    res.json({ ok: true });
+  } catch (error) {
+    console.log(error.message);
+  }
 };
 
 exports.listMyCountry = async (req, res) => {
