@@ -23,6 +23,7 @@ const orderSchema = new mongoose.Schema(
         price: Number,
         count: Number,
         variant: ObjectId,
+        rated: { type: Boolean, default: false },
       },
     ],
     paymentOption: {
@@ -39,6 +40,7 @@ const orderSchema = new mongoose.Schema(
         "Delivering",
         "Cancelled",
         "Void",
+        "Credit",
         "Completed",
       ],
     },

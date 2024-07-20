@@ -108,7 +108,8 @@ exports.adminOrders = async (req, res) => {
   let orders = [];
 
   try {
-    const { sortkey, sort, currentPage, pageSize, searchQuery } = req.body;
+    const { sortkey, sort, currentPage, pageSize, searchQuery, status } =
+      req.body;
 
     const user = await User.findOne({ email }).exec();
 
@@ -125,6 +126,9 @@ exports.adminOrders = async (req, res) => {
             createdBy: user._id,
           }
         : { estoreid: new ObjectId(estoreid), createdBy: user._id };
+      if (status !== "All Status") {
+        searchObj = { ...searchObj, orderStatus: status };
+      }
       orders = await Order.find(searchObj)
         .skip((currentPage - 1) * pageSize)
         .sort({ [sortkey]: sort })
@@ -143,6 +147,9 @@ exports.adminOrders = async (req, res) => {
             estoreid: new ObjectId(estoreid),
           }
         : { estoreid: new ObjectId(estoreid) };
+      if (status !== "All Status") {
+        searchObj = { ...searchObj, orderStatus: status };
+      }
       orders = await Order.find(searchObj)
         .skip((currentPage - 1) * pageSize)
         .sort({ [sortkey]: sort })
@@ -318,6 +325,7 @@ exports.saveCartOrder = async (req, res) => {
   const paymentOption = req.body.paymentOption;
   const delAddress = req.body.delAddress;
   const orderNotes = req.body.orderNotes;
+  const orderStatus = req.body.orderStatus;
 
   const orderedBy = req.body.orderedBy;
   const customerName = req.body.customerName;
@@ -371,7 +379,12 @@ exports.saveCartOrder = async (req, res) => {
       orderType,
       products: cart.products,
       paymentOption: new ObjectId(paymentOption),
-      orderStatus: orderType === "pos" ? "Completed" : "Not Processed",
+      orderStatus:
+        orderType === "pos"
+          ? orderStatus === "Credit"
+            ? "Credit"
+            : "Completed"
+          : "Not Processed",
       cartTotal: cart.cartTotal,
       delfee,
       discount,
@@ -567,6 +580,37 @@ exports.updateOrderStatus = async (req, res) => {
             );
           });
         }
+      } else {
+        res.json({ err: "Order does not exist." });
+      }
+    } else {
+      res.json({ err: "Cannot update the order status." });
+    }
+  } catch (error) {
+    res.json({ err: "Updating order status fails. " + error.message });
+  }
+};
+
+exports.updateProductRating = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  const email = req.user.email;
+  const { orderid, products } = req.body;
+
+  try {
+    const user = await User.findOne({ email }).exec();
+    if (user) {
+      const order = await Order.findOneAndUpdate(
+        {
+          _id: new ObjectId(orderid),
+          estoreid: new Object(estoreid),
+        },
+        {
+          products,
+        },
+        { new: true }
+      );
+      if (order) {
+        res.json(order);
       } else {
         res.json({ err: "Order does not exist." });
       }
