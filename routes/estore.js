@@ -4,6 +4,7 @@ const {
   getEstore,
   getReseller,
   getEstores,
+  getDedicatedEstores,
   getEstoresBilling,
   getEstoreCounters,
   updateEstore,
@@ -16,6 +17,7 @@ const { authCheck, adminGratisCheck } = require("../middlewares/auth");
 
 router.get("/gratis/estore/:slug", getEstore);
 router.get("/gratis/reseller/:id", getReseller);
+router.get("/gratis/dedicated-estores", getDedicatedEstores);
 router.post("/gratis/estores", authCheck, adminGratisCheck, getEstores);
 router.post(
   "/gratis/estores-billing",

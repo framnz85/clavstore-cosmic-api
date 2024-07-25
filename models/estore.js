@@ -11,6 +11,9 @@ const estoreSchema = new mongoose.Schema(
     },
     email: String,
     image: Object,
+    images: {
+      type: Array,
+    },
     slug: {
       type: String,
       unique: true,

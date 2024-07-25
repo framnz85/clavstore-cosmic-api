@@ -129,6 +129,18 @@ exports.getEstores = async (req, res) => {
   }
 };
 
+exports.getDedicatedEstores = async (req, res) => {
+  try {
+    let estores = await Estore.find({}).exec();
+
+    estores = await populateEstore(estores);
+
+    res.json(estores);
+  } catch (error) {
+    res.json({ err: "Fetching dedicated stores fails. " + error.message });
+  }
+};
+
 exports.getEstoresBilling = async (req, res) => {
   const estoreid = req.headers.estoreid;
 
