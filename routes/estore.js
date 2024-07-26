@@ -9,6 +9,7 @@ const {
   getEstoreCounters,
   updateEstore,
   createEstore,
+  addNewEstore,
   approveCosmic,
   updateEstoreReseller,
   updateEstoreCounters,
@@ -28,6 +29,12 @@ router.post(
 router.get("/gratis/estore-counters/:estoreid", getEstoreCounters);
 router.post("/gratis/estore-update", authCheck, adminGratisCheck, updateEstore);
 router.post("/gratis/estore-create/:resellid", createEstore);
+router.post(
+  "/gratis/add-new-estore/:resellid",
+  authCheck,
+  adminGratisCheck,
+  addNewEstore
+);
 router.put(
   "/gratis/approve-cosmic",
   authCheck,

@@ -309,6 +309,42 @@ exports.createEstore = async (req, res) => {
   }
 };
 
+exports.addNewEstore = async (req, res) => {
+  const resellid = req.params.resellid;
+  const email = req.user.email;
+  try {
+    const user = await User.findOne({ email }).exec();
+    if (user) {
+      const checkStoreExist = await Estore.findOne({
+        slug: slugify(req.body.name.toString().toLowerCase()),
+      });
+      if (!checkStoreExist) {
+        const estore = new Estore({
+          name: req.body.name,
+          email: user.email,
+          slug: slugify(req.body.name.toString().toLowerCase()),
+          country: new ObjectId(req.body.country),
+          resellid: new ObjectId(resellid),
+          upgradeType: "2",
+          upStatus: "Active",
+          upStatus2: "Active",
+        });
+        await estore.save();
+
+        res.json(estore);
+      } else {
+        res.json({
+          err: `Store or App with a name ${req.body.name} is already existing. Please choose another Store Name.`,
+        });
+      }
+    } else {
+      res.json({ err: "Cannot fetch the user." });
+    }
+  } catch (error) {
+    res.json({ err: "Creating store fails. " + error.message });
+  }
+};
+
 exports.approveCosmic = async (req, res) => {
   try {
     const estore = await Estore.findByIdAndUpdate(req.body._id, req.body, {
