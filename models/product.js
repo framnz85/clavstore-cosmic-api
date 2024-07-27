@@ -76,11 +76,14 @@ const productSchema = new mongoose.Schema(
     barcode: {
       type: String,
       maxlength: 32,
-      unique: true,
     },
     quantity: {
       type: Number,
       default: 0,
+    },
+    showQuantity: {
+      type: Boolean,
+      default: false,
     },
     segregate: {
       type: Boolean,
