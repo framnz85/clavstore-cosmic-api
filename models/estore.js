@@ -80,6 +80,7 @@ const estoreSchema = new mongoose.Schema(
       type: String,
       enum: ["clavmall", "cloudinary"],
     },
+    storeDescription: String,
     storeAddress: String,
     storeContact: String,
     locationType: {
@@ -253,6 +254,10 @@ const estoreSchema = new mongoose.Schema(
           "training",
           "setting",
           "cartprice",
+          "barcode",
+          "stores",
+          "contact",
+          "about",
         ],
       },
       cashier: {
@@ -272,7 +277,15 @@ const estoreSchema = new mongoose.Schema(
           "training",
           "setting",
           "cartprice",
+          "barcode",
+          "stores",
+          "contact",
+          "about",
         ],
+      },
+      customer: {
+        type: Array,
+        default: ["stores", "contact", "about"],
       },
     },
     allocation: {
@@ -292,6 +305,12 @@ const estoreSchema = new mongoose.Schema(
         default: "m",
       },
     },
+    contact: [
+      {
+        socmed: String,
+        link: String,
+      },
+    ],
   },
   { timestamps: true }
 );
