@@ -311,6 +311,12 @@ const estoreSchema = new mongoose.Schema(
         link: String,
       },
     ],
+    tutorial: [
+      {
+        title: String,
+        link: String,
+      },
+    ],
   },
   { timestamps: true }
 );
