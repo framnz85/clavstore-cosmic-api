@@ -24,6 +24,7 @@ const orderSchema = new mongoose.Schema(
         count: Number,
         variant: ObjectId,
         rated: { type: Boolean, default: false },
+        excess: { type: Boolean, default: false },
       },
     ],
     paymentOption: {

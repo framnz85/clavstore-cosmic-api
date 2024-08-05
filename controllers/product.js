@@ -312,6 +312,7 @@ exports.searchProduct = async (req, res) => {
   const text = req.body.text;
   const catSlug = req.body.catSlug;
   const price = req.body.price;
+  const page = req.body.page;
   let querySearch = {};
   let noResultSearch = {};
   let products = [];
@@ -347,6 +348,7 @@ exports.searchProduct = async (req, res) => {
         ...querySearch,
         estoreid: new ObjectId(estoreid),
       })
+        .skip((page - 1) * 30)
         .limit(30)
         .exec();
 
@@ -363,6 +365,7 @@ exports.searchProduct = async (req, res) => {
       products = await Product.find({
         estoreid: new ObjectId(estoreid),
       })
+        .skip((page - 1) * 30)
         .limit(30)
         .exec();
     }

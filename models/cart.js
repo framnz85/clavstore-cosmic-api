@@ -19,6 +19,7 @@ const cartSchema = new mongoose.Schema(
         supplierPrice: Number,
         price: Number,
         count: Number,
+        excess: { type: Boolean, default: false },
       },
     ],
     cartTotal: Number,

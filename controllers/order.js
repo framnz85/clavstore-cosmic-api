@@ -6,7 +6,11 @@ const Cart = require("../models/cart");
 const Product = require("../models/product");
 const Order = require("../models/order");
 const Estore = require("../models/estore");
-const { createRaffle } = require("./common");
+const {
+  createRaffle,
+  checkOrderedProd,
+  updateOrderedProd,
+} = require("./common");
 
 exports.userOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
@@ -232,28 +236,25 @@ exports.updateCart = async (req, res) => {
   try {
     const user = await User.findOne({ email }).exec();
     if (user) {
-      await Cart.deleteMany({
-        orderedBy: user._id,
-        estoreid: new ObjectId(estoreid),
-      }).exec();
-      let excessQuantity = 0;
+      let showWaiting = false;
       let remainingQuantity = 0;
-      let exceedProdTitle = "";
+      let waitingProduct = { title: "", quantity: 0 };
       for (let i = 0; i < cart.length; i++) {
         let object = {};
 
         object.product = cart[i]._id;
         object.count = cart[i].count;
+        object.excess = cart[i].excess ? true : false;
 
         const productFromDb = await Product.findOne({
           _id: new ObjectId(cart[i]._id),
           estoreid: new ObjectId(estoreid),
-        })
-          .select("title supplierPrice price wprice wcount quantity segregate")
-          .exec();
-        object.supplierPrice = productFromDb.supplierPrice;
+        }).exec();
+        object.supplierPrice = cart[i].excess
+          ? cart[i].supplierPrice
+          : productFromDb.supplierPrice;
         let price = 0;
-        if (cart[i].priceChange) {
+        if (cart[i].priceChange || cart[i].excess) {
           price = cart[i].price;
         } else {
           if (
@@ -274,19 +275,44 @@ exports.updateCart = async (req, res) => {
         remainingQuantity = productFromDb.quantity;
 
         if (
+          !cart[i].excess &&
           !productFromDb.segregate &&
           (!productFromDb.quantity || productFromDb.quantity < object.count)
         ) {
-          excessQuantity = productFromDb.quantity;
-          exceedProdTitle = productFromDb.title;
+          waitingProduct = {
+            ...productFromDb._doc,
+            excessCount:
+              parseFloat(object.count) - parseFloat(productFromDb.quantity),
+          };
+          showWaiting = true;
+        }
+
+        const newQuantity =
+          productFromDb &&
+          productFromDb.waiting &&
+          productFromDb.waiting.newQuantity
+            ? productFromDb.waiting.newQuantity
+            : 0;
+
+        if (cart[i].excess && newQuantity < object.count) {
+          waitingProduct = {
+            ...cart[i],
+            quantity: newQuantity,
+          };
+          showWaiting = false;
         }
       }
-      if (excessQuantity === 0 && remainingQuantity > 0) {
+      if (waitingProduct.quantity === 0 && remainingQuantity > 0) {
         let cartTotal = 0;
         for (let i = 0; i < products.length; i++) {
           products[i].product = new ObjectId(products[i].product);
           cartTotal = cartTotal + products[i].price * products[i].count;
         }
+
+        await Cart.deleteMany({
+          orderedBy: user._id,
+          estoreid: new ObjectId(estoreid),
+        }).exec();
 
         Cart.collection.insertOne({
           estoreid: new ObjectId(estoreid),
@@ -301,7 +327,14 @@ exports.updateCart = async (req, res) => {
         res.json({ cart });
       } else {
         res.json({
-          err: exceedProdTitle + " has " + excessQuantity + " in stock only",
+          err:
+            waitingProduct.title +
+            " with price @ " +
+            waitingProduct.price +
+            " has " +
+            waitingProduct.quantity +
+            " in stock only",
+          waitingProduct: showWaiting ? waitingProduct : {},
         });
       }
     } else {
@@ -374,105 +407,52 @@ exports.saveCartOrder = async (req, res) => {
       estoreid: Object(estoreid),
     });
 
-    const newOrder = new Order({
-      orderCode: cart._id.toString().slice(-12),
-      orderType,
-      products: cart.products,
-      paymentOption: new ObjectId(paymentOption),
-      orderStatus:
-        orderType === "pos"
-          ? orderStatus === "Credit"
-            ? "Credit"
-            : "Completed"
-          : "Not Processed",
-      cartTotal: cart.cartTotal,
-      delfee,
-      discount,
-      servefee,
-      addDiscount,
-      cash,
-      createdBy: user._id,
-      orderedBy: checkUser && checkUser._id ? checkUser._id : user._id,
-      orderedName: customerName || user.name,
-      estoreid: new ObjectId(estoreid),
-      delAddress,
-      orderNotes,
-    });
+    const checkProdQty = await checkOrderedProd(cart.products, estoreid);
 
-    const order = await newOrder.save();
-
-    if (order) {
-      res.json(order);
-      await Cart.deleteMany({
-        orderedBy: user._id,
-        estoreid: Object(estoreid),
-      });
-      if (orderType === "pos" && order.orderStatus === "Completed") {
-        order.products.forEach(async (prod) => {
-          const result = await Product.findOneAndUpdate(
-            {
-              _id: new ObjectId(prod.product),
-              estoreid: Object(estoreid),
-            },
-            { $inc: { quantity: -prod.count, sold: prod.count } },
-            { new: true }
-          );
-          if (result.quantity <= 0) {
-            const newQuantity =
-              result && result.waiting && result.waiting.newQuantity
-                ? result.waiting.newQuantity
-                : 0;
-
-            const newSupplierPrice =
-              result && result.waiting && result.waiting.newSupplierPrice
-                ? result.waiting.newSupplierPrice
-                : result.supplierPrice;
-
-            const newPrice =
-              newSupplierPrice + (newSupplierPrice * result.markup) / 100;
-
-            await Product.findOneAndUpdate(
-              {
-                _id: new ObjectId(prod.product),
-                estoreid: Object(estoreid),
-              },
-              {
-                quantity: newQuantity,
-                supplierPrice: newSupplierPrice,
-                price: newPrice,
-                waiting: {},
-              },
-              { new: true }
-            );
-          }
-        });
-
-        const estore = await Estore.findOne({
-          _id: new ObjectId(estoreid),
-        }).exec();
-
-        const date1 = new Date(estore.raffleDate);
-        const date2 = new Date();
-        const timeDifference = date1.getTime() - date2.getTime();
-        const daysDifference = Math.round(timeDifference / (1000 * 3600 * 24));
-
-        if (
-          user.role === "customer" &&
-          estore.raffleActivation &&
-          daysDifference > 0
-        ) {
-          createRaffle(
-            estoreid,
-            user._id,
-            order._id,
-            estore.raffleDate,
-            estore.raffleEntryAmount,
-            order.cartTotal
-          );
-        }
-      }
+    if (checkProdQty && checkProdQty.err) {
+      res.json({ err: checkProdQty.err, backToCart: true });
     } else {
-      res.json({ err: "Cannot save the order." });
+      const newOrder = new Order({
+        orderCode: cart._id.toString().slice(-12),
+        orderType,
+        products: cart.products,
+        paymentOption: new ObjectId(paymentOption),
+        orderStatus:
+          orderType === "pos"
+            ? orderStatus === "Credit"
+              ? "Credit"
+              : "Completed"
+            : "Not Processed",
+        cartTotal: cart.cartTotal,
+        delfee,
+        discount,
+        servefee,
+        addDiscount,
+        cash,
+        createdBy: user._id,
+        orderedBy: checkUser && checkUser._id ? checkUser._id : user._id,
+        orderedName: customerName || user.name,
+        estoreid: new ObjectId(estoreid),
+        delAddress,
+        orderNotes,
+      });
+
+      const order = await newOrder.save();
+
+      if (order) {
+        res.json(order);
+        await Cart.deleteMany({
+          orderedBy: user._id,
+          estoreid: Object(estoreid),
+        });
+        if (orderType === "pos" && order.orderStatus === "Completed") {
+          await updateOrderedProd(order.products, estoreid, true);
+
+          createRaffle(estoreid, user, order);
+        }
+      } else {
+        res.json({ err: "Cannot save the order." });
+      }
     }
   } catch (error) {
     res.json({ err: "Saving cart to order fails. " + error.message });
@@ -480,6 +460,7 @@ exports.saveCartOrder = async (req, res) => {
 };
 
 exports.updateOrderStatus = async (req, res) => {
+  let checkProdQty = {};
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
   const { orderid, orderStatus, orderPastStat, orderType, orderedBy } =
@@ -488,100 +469,55 @@ exports.updateOrderStatus = async (req, res) => {
   try {
     const user = await User.findOne({ email }).exec();
     if (user) {
-      const order = await Order.findOneAndUpdate(
-        {
-          _id: new ObjectId(orderid),
-          orderedBy: new ObjectId(orderedBy),
-          estoreid: Object(estoreid),
-        },
-        {
-          orderStatus,
-        },
-        { new: true }
-      );
-      if (order) {
-        res.json(order);
-        if (orderType === "web" && orderStatus === "Delivering") {
-          order.products.forEach(async (prod) => {
-            const result = await Product.findOneAndUpdate(
-              {
-                _id: new ObjectId(prod.product),
-                estoreid: Object(estoreid),
-              },
-              { $inc: { quantity: -prod.count, sold: prod.count } },
-              { new: true }
-            );
-            if (result.quantity <= 0) {
-              const newQuantity =
-                result && result.waiting && result.waiting.newQuantity
-                  ? result.waiting.newQuantity
-                  : 0;
+      const orderForChecking = await Order.findOne({
+        _id: new ObjectId(orderid),
+        orderedBy: new ObjectId(orderedBy),
+        estoreid: Object(estoreid),
+      });
 
-              const newSupplierPrice =
-                result && result.waiting && result.waiting.newSupplierPrice
-                  ? result.waiting.newSupplierPrice
-                  : result.supplierPrice;
+      if (
+        orderType === "web" &&
+        orderStatus !== "Cancelled" &&
+        orderStatus !== "Completed"
+      ) {
+        checkProdQty = await checkOrderedProd(
+          orderForChecking.products,
+          estoreid
+        );
+      }
 
-              const newPrice =
-                newSupplierPrice + (newSupplierPrice * result.markup) / 100;
-
-              await Product.findOneAndUpdate(
-                {
-                  _id: new ObjectId(prod.product),
-                  estoreid: Object(estoreid),
-                },
-                {
-                  quantity: newQuantity,
-                  supplierPrice: newSupplierPrice,
-                  price: newPrice,
-                  waiting: {},
-                },
-                { new: true }
-              );
-            }
-          });
-        }
-        if (orderType === "web" && order.orderStatus === "Completed") {
-          const estore = await Estore.findOne({
-            _id: new ObjectId(estoreid),
-          }).exec();
-
-          const date1 = new Date(estore.raffleDate);
-          const date2 = new Date();
-          const timeDifference = date1.getTime() - date2.getTime();
-          const daysDifference = Math.round(
-            timeDifference / (1000 * 3600 * 24)
-          );
-
-          if (estore.raffleActivation && daysDifference > 0) {
-            createRaffle(
-              estoreid,
-              order.orderedBy,
-              order._id,
-              estore.raffleDate,
-              estore.raffleEntryAmount,
-              order.cartTotal
-            );
-          }
-        }
-        if (
-          orderType === "web" &&
-          orderStatus === "Cancelled" &&
-          orderPastStat === "Delivering"
-        ) {
-          order.products.forEach(async (prod) => {
-            await Product.findOneAndUpdate(
-              {
-                _id: new ObjectId(prod.product),
-                estoreid: Object(estoreid),
-              },
-              { $inc: { quantity: prod.count, sold: -prod.count } },
-              { new: true }
-            );
-          });
-        }
+      if (checkProdQty && checkProdQty.err) {
+        res.json({ err: checkProdQty.err, backToCart: true });
       } else {
-        res.json({ err: "Order does not exist." });
+        const order = await Order.findOneAndUpdate(
+          {
+            _id: new ObjectId(orderid),
+            orderedBy: new ObjectId(orderedBy),
+            estoreid: Object(estoreid),
+          },
+          {
+            orderStatus,
+          },
+          { new: true }
+        );
+        if (order) {
+          res.json(order);
+          if (orderType === "web" && orderStatus === "Delivering") {
+            await updateOrderedProd(order.products, estoreid, true);
+          }
+          if (orderType === "web" && order.orderStatus === "Completed") {
+            createRaffle(estoreid, user, order);
+          }
+          if (
+            orderType === "web" &&
+            orderStatus === "Cancelled" &&
+            orderPastStat === "Delivering"
+          ) {
+            await updateOrderedProd(order.products, estoreid, false);
+          }
+        } else {
+          res.json({ err: "Order does not exist." });
+        }
       }
     } else {
       res.json({ err: "Cannot update the order status." });
@@ -650,27 +586,12 @@ exports.voidProducts = async (req, res) => {
       });
 
       const order = await newOrder.save();
-
       if (order) {
         await Order.findByIdAndUpdate(order._id, {
           orderCode: order._id.toString().slice(-12),
         }).exec();
 
-        for (let i = 0; i < products.length; i++) {
-          await Product.findOneAndUpdate(
-            {
-              _id: new ObjectId(products[i]._id),
-              estoreid: new ObjectId(estoreid),
-            },
-            {
-              $inc: {
-                quantity: products[i].quantity,
-                sold: -products[i].quantity,
-              },
-            },
-            { new: true }
-          );
-        }
+        await updateOrderedProd(order.products, estoreid, false);
       }
       res.json({ ok: true });
     }
@@ -693,27 +614,11 @@ exports.deleteAdminOrder = async (req, res) => {
       order.orderStatus === "Completed" ||
       order.orderStatus === "Void"
     ) {
-      order.products.forEach(async (prod) => {
-        if (order.orderType === "void") {
-          await Product.findOneAndUpdate(
-            {
-              _id: new ObjectId(prod.product),
-              estoreid: Object(estoreid),
-            },
-            { $inc: { quantity: -prod.count, sold: prod.count } },
-            { new: true }
-          );
-        } else {
-          await Product.findOneAndUpdate(
-            {
-              _id: new ObjectId(prod.product),
-              estoreid: Object(estoreid),
-            },
-            { $inc: { quantity: prod.count, sold: -prod.count } },
-            { new: true }
-          );
-        }
-      });
+      if (order.orderType === "void") {
+        await updateOrderedProd(order.products, estoreid, true);
+      } else {
+        await updateOrderedProd(order.products, estoreid, false);
+      }
     }
     res.json(order);
   } catch (error) {
