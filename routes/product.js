@@ -7,6 +7,7 @@ const {
   itemsByBarcode,
   loadInitProducts,
   getWaitingProducts,
+  inventorySummary,
   getAdminItems,
   addProduct,
   searchProduct,
@@ -39,6 +40,12 @@ router.get(
   authCheck,
   adminGratisCheck,
   getWaitingProducts
+);
+router.get(
+  "/gratis/get-inventory-summary",
+  authCheck,
+  adminGratisCheck,
+  inventorySummary
 );
 router.get(
   "/gratis/check-image-owner-product/:publicid/:defaultestore",

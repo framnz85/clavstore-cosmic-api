@@ -591,3 +591,24 @@ exports.checkImageUser = async (req, res) => {
     res.status(400).send("Checking image user failed.");
   }
 };
+
+exports.inventorySummary = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  let cost = 0;
+  let price = 0;
+
+  try {
+    const products = await Product.find({
+      estoreid: Object(estoreid),
+    }).exec();
+
+    products.forEach((product) => {
+      cost = cost + product.quantity * product.supplierPrice;
+      price = price + product.quantity * product.price;
+    });
+
+    res.json({ cost, price });
+  } catch (error) {
+    res.json({ err: "Fetching inventory failed. " + error.message });
+  }
+};
