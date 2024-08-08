@@ -49,6 +49,24 @@ exports.getProductBySlug = async (req, res) => {
   }
 };
 
+exports.getProductReviews = async (req, res) => {
+  const prodid = req.params.prodid;
+  const estoreid = req.headers.estoreid;
+
+  try {
+    let ratings = await Rating.find({
+      prodid: new ObjectId(prodid),
+      estoreid: new ObjectId(estoreid),
+    })
+      .populate("userid")
+      .exec();
+
+    res.json(ratings);
+  } catch (error) {
+    res.json({ err: "Getting product reviews failed." + error.message });
+  }
+};
+
 exports.getProductById = async (req, res) => {
   const prodid = req.params.prodid;
   const estoreid = req.headers.estoreid;
@@ -379,6 +397,7 @@ exports.submitRating = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const prodid = req.body.prodid;
   const rate = req.body.rate;
+  const images = req.body.images;
   const review = req.body.review;
   const rateDefault = req.body.rateDefault;
   const email = req.user.email;
@@ -397,7 +416,7 @@ exports.submitRating = async (req, res) => {
           prodid: new ObjectId(prodid),
           estoreid: new ObjectId(estoreid),
         },
-        { rate, review },
+        { rate, images, review },
         { new: true }
       );
     } else {
@@ -406,6 +425,7 @@ exports.submitRating = async (req, res) => {
         prodid: new ObjectId(prodid),
         estoreid: new ObjectId(estoreid),
         rate,
+        images,
         review,
       });
       await newRating.save();
@@ -444,7 +464,7 @@ exports.submitRating = async (req, res) => {
       rateDefault,
     });
   } catch (error) {
-    res.json({ err: "Updating product failed. " + error.message });
+    res.json({ err: "Submitting product rating failed. " + error.message });
   }
 };
 
@@ -462,12 +482,35 @@ exports.updateProduct = async (req, res) => {
   }
 
   try {
+    const ratings = await Rating.find({
+      prodid: new ObjectId(prodid),
+      estoreid: new ObjectId(estoreid),
+    }).exec();
+
+    const finalRatings =
+      ratings.reduce((partialSum, a) => partialSum + a.rate, 0) +
+      parseFloat(values.rateGroup.rateDefault.ratings) *
+        parseFloat(values.rateGroup.rateDefault.ratingCount);
+    const finalRatingCount =
+      parseFloat(ratings.length) +
+      parseFloat(values.rateGroup.rateDefault.ratingCount);
+    const finalRating = finalRatings / finalRatingCount;
+
+    console.log(finalRatings, finalRatingCount);
+
     let product = await Product.findOneAndUpdate(
       {
         _id: new ObjectId(prodid),
         estoreid: new ObjectId(estoreid),
       },
-      values,
+      {
+        ...values,
+        rateGroup: {
+          ratings: finalRating,
+          ratingCount: finalRatingCount,
+          rateDefault: values.rateGroup.rateDefault,
+        },
+      },
       { new: true }
     );
 

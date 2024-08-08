@@ -5,6 +5,7 @@ const ratingSchema = new mongoose.Schema(
   {
     userid: {
       type: Object,
+      ref: "GratisUser",
       required: true,
     },
     prodid: {
@@ -19,6 +20,9 @@ const ratingSchema = new mongoose.Schema(
       type: Number,
       required: true,
       default: 0,
+    },
+    images: {
+      type: Array,
     },
     review: String,
   },
