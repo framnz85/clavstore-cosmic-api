@@ -496,8 +496,6 @@ exports.updateProduct = async (req, res) => {
       parseFloat(values.rateGroup.rateDefault.ratingCount);
     const finalRating = finalRatings / finalRatingCount;
 
-    console.log(finalRatings, finalRatingCount);
-
     let product = await Product.findOneAndUpdate(
       {
         _id: new ObjectId(prodid),
@@ -506,9 +504,12 @@ exports.updateProduct = async (req, res) => {
       {
         ...values,
         rateGroup: {
-          ratings: finalRating,
-          ratingCount: finalRatingCount,
-          rateDefault: values.rateGroup.rateDefault,
+          ratings: finalRating ? parseFloat(finalRating) : 0,
+          ratingCount: finalRatingCount ? parseFloat(finalRatingCount) : 0,
+          rateDefault:
+            values.rateGroup && values.rateGroup.rateDefault
+              ? values.rateGroup.rateDefault
+              : { ratings: 0, ratingCount: 0 },
         },
       },
       { new: true }
