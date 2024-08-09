@@ -270,6 +270,7 @@ exports.createNewUser = async (req, res) => {
             password: md5(req.body.password),
             showPass: req.body.password,
             role: req.body.role,
+            address: req.body.address,
             estoreid: new ObjectId(estoreid),
             resellid: new ObjectId(resellid),
           }
@@ -280,6 +281,7 @@ exports.createNewUser = async (req, res) => {
             password: md5(req.body.password),
             showPass: req.body.password,
             role: req.body.role,
+            address: req.body.address,
             estoreid: new ObjectId(estoreid),
             resellid: new ObjectId(resellid),
           }
