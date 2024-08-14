@@ -110,10 +110,19 @@ exports.adminOrders = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
   let orders = [];
+  let totalCredit = {};
+  let collectibles = 0;
 
   try {
-    const { sortkey, sort, currentPage, pageSize, searchQuery, status } =
-      req.body;
+    const {
+      sortkey,
+      sort,
+      currentPage,
+      pageSize,
+      searchQuery,
+      status,
+      orderedBy,
+    } = req.body;
 
     const user = await User.findOne({ email }).exec();
 
@@ -132,6 +141,9 @@ exports.adminOrders = async (req, res) => {
         : { estoreid: new ObjectId(estoreid), createdBy: user._id };
       if (status !== "All Status") {
         searchObj = { ...searchObj, orderStatus: status };
+      }
+      if (orderedBy) {
+        searchObj = { ...searchObj, orderedBy: new ObjectId(orderedBy) };
       }
       orders = await Order.find(searchObj)
         .skip((currentPage - 1) * pageSize)
@@ -154,6 +166,9 @@ exports.adminOrders = async (req, res) => {
       if (status !== "All Status") {
         searchObj = { ...searchObj, orderStatus: status };
       }
+      if (orderedBy) {
+        searchObj = { ...searchObj, orderedBy: new ObjectId(orderedBy) };
+      }
       orders = await Order.find(searchObj)
         .skip((currentPage - 1) * pageSize)
         .sort({ [sortkey]: sort })
@@ -166,7 +181,27 @@ exports.adminOrders = async (req, res) => {
 
     const countOrder = await Order.find(searchObj).exec();
 
-    res.json({ orders, count: countOrder.length });
+    if (status === "Credit") {
+      totalCredit = await Order.aggregate([
+        { $match: searchObj },
+        {
+          $group: {
+            _id: null,
+            sum_cartTotal: { $sum: "$cartTotal" },
+            sum_delfee: { $sum: "$delfee" },
+            sum_discount: { $sum: "$discount" },
+            sum_addDiscount: { $sum: "$addDiscount" },
+          },
+        },
+      ]);
+      collectibles =
+        parseFloat(totalCredit[0].sum_cartTotal) +
+        parseFloat(totalCredit[0].sum_delfee) +
+        parseFloat(totalCredit[0].sum_discount) +
+        parseFloat(totalCredit[0].sum_addDiscount);
+    }
+
+    res.json({ orders, count: countOrder.length, collectibles });
   } catch (error) {
     res.json({ err: "Fetching orders failed. " + error.message });
   }
