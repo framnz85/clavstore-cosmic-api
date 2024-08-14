@@ -194,11 +194,13 @@ exports.adminOrders = async (req, res) => {
           },
         },
       ]);
-      collectibles =
-        parseFloat(totalCredit[0].sum_cartTotal) +
-        parseFloat(totalCredit[0].sum_delfee) +
-        parseFloat(totalCredit[0].sum_discount) +
-        parseFloat(totalCredit[0].sum_addDiscount);
+      if (totalCredit && totalCredit[0]) {
+        collectibles =
+          parseFloat(totalCredit[0].sum_cartTotal) +
+          parseFloat(totalCredit[0].sum_delfee) +
+          parseFloat(totalCredit[0].sum_discount) +
+          parseFloat(totalCredit[0].sum_addDiscount);
+      }
     }
 
     res.json({ orders, count: countOrder.length, collectibles });
