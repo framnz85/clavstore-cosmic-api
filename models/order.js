@@ -45,6 +45,7 @@ const orderSchema = new mongoose.Schema(
         "Completed",
       ],
     },
+    statusHistory: [{ status: String, remarks: String, date: Date }],
     cartTotal: Number,
     delfee: Number,
     discount: Number,

@@ -460,6 +460,13 @@ exports.saveCartOrder = async (req, res) => {
               ? "Credit"
               : "Completed"
             : "Not Processed",
+        statusHistory: [
+          {
+            status: "Not Processed",
+            remarks: "Order was created.",
+            date: new Date(),
+          },
+        ],
         cartTotal: cart.cartTotal,
         delfee,
         discount,
@@ -500,8 +507,14 @@ exports.updateOrderStatus = async (req, res) => {
   let checkProdQty = {};
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
-  const { orderid, orderStatus, orderPastStat, orderType, orderedBy } =
-    req.body;
+  const {
+    orderid,
+    orderStatus,
+    statusHistory,
+    orderPastStat,
+    orderType,
+    orderedBy,
+  } = req.body;
 
   try {
     const user = await User.findOne({ email }).exec();
@@ -534,6 +547,7 @@ exports.updateOrderStatus = async (req, res) => {
           },
           {
             orderStatus,
+            statusHistory,
           },
           { new: true }
         );

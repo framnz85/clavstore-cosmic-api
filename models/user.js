@@ -87,13 +87,6 @@ const userSchema = new mongoose.Schema(
       },
     ],
     deleteAccount: { request: Boolean, reasons: Array },
-    address: {
-      details: String,
-      country: {},
-      addiv1: {},
-      addiv2: {},
-      addiv3: {},
-    },
   },
   { timestamps: true }
 );
