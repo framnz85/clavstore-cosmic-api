@@ -5,7 +5,6 @@ const User = require("../models/user");
 const Cart = require("../models/cart");
 const Product = require("../models/product");
 const Order = require("../models/order");
-const Estore = require("../models/estore");
 const {
   createRaffle,
   checkOrderedProd,
@@ -462,7 +461,10 @@ exports.saveCartOrder = async (req, res) => {
             : "Not Processed",
         statusHistory: [
           {
-            status: "Not Processed",
+            status:
+              orderStatus === "Completed" || orderStatus === "Credit"
+                ? orderStatus
+                : "Not Processed",
             remarks: "Order was created.",
             date: new Date(),
           },

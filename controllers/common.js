@@ -244,13 +244,13 @@ const handleUpdateProd = async (product, estoreid, updateType) => {
     ) {
       const newQuantity =
         result && result.waiting && result.waiting.newQuantity
-          ? result.waiting.newQuantity
+          ? parseFloat(result.waiting.newQuantity)
           : 0;
 
       const newSupplierPrice =
         result && result.waiting && result.waiting.newSupplierPrice
-          ? result.waiting.newSupplierPrice
-          : result.supplierPrice;
+          ? parseFloat(result.waiting.newSupplierPrice)
+          : parseFloat(result.supplierPrice);
 
       if (parseFloat(checkProduct.markup) > 0) {
         if (checkProduct.markupType === "percent") {
