@@ -13,6 +13,7 @@ exports.getEstore = async (req, res) => {
     const estore = await Estore.findOne({ slug: req.params.slug, resellid })
       .populate("country")
       .exec();
+    console.log(resellid);
     res.json(estore);
   } catch (error) {
     res.json({ err: "Fetching store information fails. " + error.message });

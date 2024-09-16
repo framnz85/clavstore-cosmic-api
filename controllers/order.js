@@ -273,7 +273,6 @@ exports.updateCart = async (req, res) => {
     const user = await User.findOne({ email }).exec();
     if (user) {
       let showWaiting = false;
-      let remainingQuantity = 0;
       let waitingProduct = { title: "", quantity: 0 };
       for (let i = 0; i < cart.length; i++) {
         let object = {};
@@ -308,8 +307,6 @@ exports.updateCart = async (req, res) => {
 
         products.push(object);
 
-        remainingQuantity = productFromDb.quantity;
-
         if (
           !cart[i].excess &&
           !productFromDb.segregate &&
@@ -338,7 +335,8 @@ exports.updateCart = async (req, res) => {
           showWaiting = false;
         }
       }
-      if (waitingProduct.quantity === 0 && remainingQuantity > 0) {
+
+      if (waitingProduct.quantity === 0) {
         let cartTotal = 0;
         for (let i = 0; i < products.length; i++) {
           products[i].product = new ObjectId(products[i].product);

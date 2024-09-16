@@ -151,7 +151,10 @@ exports.checkOrderedProd = async (products, estoreid) => {
       estoreid: Object(estoreid),
     });
     if (!products[i].excess && checkProduct) {
-      if (parseFloat(products[i].count) > parseFloat(checkProduct.quantity)) {
+      if (
+        parseFloat(products[i].count) > parseFloat(checkProduct.quantity) &&
+        !checkProduct.segregate
+      ) {
         errorProduct = checkProduct;
       }
     }

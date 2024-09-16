@@ -647,8 +647,18 @@ exports.inventorySummary = async (req, res) => {
     }).exec();
 
     products.forEach((product) => {
-      cost = cost + product.quantity * product.supplierPrice;
-      price = price + product.quantity * product.price;
+      if (
+        Number.isFinite(product.quantity) &&
+        Number.isFinite(product.supplierPrice)
+      ) {
+        cost =
+          cost +
+          parseFloat(product.quantity) * parseFloat(product.supplierPrice);
+      }
+      if (Number.isFinite(product.quantity) && Number.isFinite(product.price)) {
+        price =
+          price + parseFloat(product.quantity) * parseFloat(product.price);
+      }
     });
 
     res.json({ cost, price });
