@@ -575,6 +575,23 @@ exports.updateProducts = async (req, res) => {
   }
 };
 
+exports.updateWaitingProduct = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  try {
+    await Product.findOneAndUpdate(
+      {
+        _id: new ObjectId(req.body._id),
+        estoreid: new ObjectId(estoreid),
+      },
+      { waiting: req.body },
+      { new: true }
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    res.json({ err: "Updating the waiting product failed. " + error.message });
+  }
+};
+
 exports.deleteProduct = async (req, res) => {
   const prodid = req.params.prodid;
   const estoreid = req.headers.estoreid;
@@ -591,6 +608,24 @@ exports.deleteProduct = async (req, res) => {
     }
   } catch (error) {
     res.json({ err: "Deleting product failed. " + error.message });
+  }
+};
+
+exports.deleteWaitingProduct = async (req, res) => {
+  const waitid = req.params.waitid;
+  const estoreid = req.headers.estoreid;
+  try {
+    await Product.findOneAndUpdate(
+      {
+        _id: new ObjectId(waitid),
+        estoreid: new ObjectId(estoreid),
+      },
+      { waiting: {} },
+      { new: true }
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    res.json({ err: "Updating the waiting product failed. " + error.message });
   }
 };
 

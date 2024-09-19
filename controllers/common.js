@@ -192,7 +192,11 @@ exports.checkOrderedProd = async (products, estoreid) => {
 
     const newPrice = newSupplierPrice + finalMarkup - finalDiscount;
 
-    if (products[i].excess && newQuantity < products[i].count) {
+    if (
+      products[i].excess &&
+      !checkProduct.segregate &&
+      newQuantity < products[i].count
+    ) {
       errorProduct = {
         ...checkProduct._doc,
         price: newPrice,
@@ -245,10 +249,14 @@ const handleUpdateProd = async (product, estoreid, updateType) => {
       result.waiting.newQuantity &&
       result.quantity <= 0
     ) {
-      const newQuantity =
+      let newQuantity =
         result && result.waiting && result.waiting.newQuantity
           ? parseFloat(result.waiting.newQuantity)
           : 0;
+
+      if (product.excess) {
+        newQuantity = parseFloat(newQuantity) - parseFloat(product.count);
+      }
 
       const newSupplierPrice =
         result && result.waiting && result.waiting.newSupplierPrice

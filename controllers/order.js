@@ -273,7 +273,7 @@ exports.updateCart = async (req, res) => {
     const user = await User.findOne({ email }).exec();
     if (user) {
       let showWaiting = false;
-      let waitingProduct = { title: "", quantity: 0 };
+      let waitingProduct = { _id: "", title: "", quantity: 0 };
       for (let i = 0; i < cart.length; i++) {
         let object = {};
 
@@ -305,11 +305,36 @@ exports.updateCart = async (req, res) => {
         object.price = price;
         cart[i] = { ...cart[i], price };
 
+        if (
+          productFromDb &&
+          productFromDb.segregate &&
+          productFromDb.quantity < object.count
+        ) {
+          object.excessCount =
+            parseFloat(object.count) - parseFloat(productFromDb.quantity);
+        }
+
         products.push(object);
 
         if (
           !cart[i].excess &&
           !productFromDb.segregate &&
+          (!productFromDb.quantity || productFromDb.quantity < object.count)
+        ) {
+          waitingProduct = {
+            ...productFromDb._doc,
+            excessCount:
+              parseFloat(object.count) - parseFloat(productFromDb.quantity),
+          };
+          showWaiting = true;
+        }
+
+        if (
+          !cart[i].excess &&
+          productFromDb.segregate &&
+          productFromDb &&
+          productFromDb.waiting &&
+          productFromDb.waiting._id &&
           (!productFromDb.quantity || productFromDb.quantity < object.count)
         ) {
           waitingProduct = {
@@ -327,7 +352,11 @@ exports.updateCart = async (req, res) => {
             ? productFromDb.waiting.newQuantity
             : 0;
 
-        if (cart[i].excess && newQuantity < object.count) {
+        if (
+          cart[i].excess &&
+          !productFromDb.segregate &&
+          newQuantity < object.count
+        ) {
           waitingProduct = {
             ...cart[i],
             quantity: newQuantity,
@@ -336,7 +365,7 @@ exports.updateCart = async (req, res) => {
         }
       }
 
-      if (waitingProduct.quantity === 0) {
+      if (!waitingProduct._id) {
         let cartTotal = 0;
         for (let i = 0; i < products.length; i++) {
           products[i].product = new ObjectId(products[i].product);

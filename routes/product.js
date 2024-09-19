@@ -16,7 +16,9 @@ const {
   updateProduct,
   receiveProducts,
   updateProducts,
+  updateWaitingProduct,
   deleteProduct,
+  deleteWaitingProduct,
   checkImageUser,
 } = require("../controllers/product");
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
@@ -83,11 +85,23 @@ router.put(
   adminGratisCheck,
   updateProducts
 );
+router.put(
+  "/gratis/update-waiting-product",
+  authCheck,
+  adminGratisCheck,
+  updateWaitingProduct
+);
 router.delete(
   "/gratis/delete-product/:prodid",
   authCheck,
   adminGratisCheck,
   deleteProduct
+);
+router.delete(
+  "/gratis/delete-waiting-product/:waitid",
+  authCheck,
+  adminGratisCheck,
+  deleteWaitingProduct
 );
 
 module.exports = router;
