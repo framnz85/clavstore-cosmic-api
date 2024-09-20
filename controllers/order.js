@@ -518,7 +518,10 @@ exports.saveCartOrder = async (req, res) => {
           orderedBy: user._id,
           estoreid: Object(estoreid),
         });
-        if (orderType === "pos" && order.orderStatus === "Completed") {
+        if (
+          orderType === "pos" &&
+          (order.orderStatus === "Credit" || order.orderStatus === "Completed")
+        ) {
           await updateOrderedProd(order.products, estoreid, true);
 
           createRaffle(estoreid, user, order);
