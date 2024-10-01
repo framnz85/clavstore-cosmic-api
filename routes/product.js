@@ -15,7 +15,7 @@ const {
   submitRating,
   updateProduct,
   receiveProducts,
-  updateProducts,
+  importProducts,
   updateWaitingProduct,
   deleteProduct,
   deleteWaitingProduct,
@@ -83,7 +83,7 @@ router.put(
   "/gratis/import-products",
   authCheck,
   adminGratisCheck,
-  updateProducts
+  importProducts
 );
 router.put(
   "/gratis/update-waiting-product",

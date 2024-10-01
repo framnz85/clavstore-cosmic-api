@@ -325,6 +325,11 @@ const estoreSchema = new mongoose.Schema(
         link: String,
       },
     ],
+    orderStatus: {
+      type: String,
+      default: "Delivering",
+      enum: ["Not Processed", "Waiting Payment", "Processing", "Delivering"],
+    },
   },
   { timestamps: true }
 );

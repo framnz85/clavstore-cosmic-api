@@ -1,6 +1,7 @@
 const ObjectId = require("mongoose").Types.ObjectId;
 const md5 = require("md5");
 
+const Estore = require("../models/estore");
 const User = require("../models/user");
 const Cart = require("../models/cart");
 const Product = require("../models/product");
@@ -514,9 +515,14 @@ exports.saveCartOrder = async (req, res) => {
 
       if (order) {
         res.json(order);
+
         await Cart.deleteMany({
           orderedBy: user._id,
           estoreid: Object(estoreid),
+        });
+
+        const estore = await Estore.findOne({
+          _id: Object(estoreid),
         });
         if (
           orderType === "pos" &&
@@ -525,6 +531,14 @@ exports.saveCartOrder = async (req, res) => {
           await updateOrderedProd(order.products, estoreid, true);
 
           createRaffle(estoreid, user, order);
+        }
+        if (
+          orderType === "web" &&
+          estore &&
+          estore.orderStatus &&
+          estore.orderStatus === "Not Processed"
+        ) {
+          await updateOrderedProd(order.products, estoreid, true);
         }
       } else {
         res.json({ err: "Cannot save the order." });
@@ -585,7 +599,15 @@ exports.updateOrderStatus = async (req, res) => {
         );
         if (order) {
           res.json(order);
-          if (orderType === "web" && orderStatus === "Delivering") {
+
+          const estore = await Estore.findOne({
+            _id: Object(estoreid),
+          });
+
+          const statusEstore =
+            estore && estore.orderStatus ? estore.orderStatus : "Delivering";
+
+          if (orderType === "web" && orderStatus === statusEstore) {
             await updateOrderedProd(order.products, estoreid, true);
           }
           if (orderType === "web" && order.orderStatus === "Completed") {
@@ -692,15 +714,47 @@ exports.deleteAdminOrder = async (req, res) => {
       _id: new ObjectId(orderid),
       estoreid: Object(estoreid),
     });
-    if (
-      order.orderStatus === "Delivering" ||
-      order.orderStatus === "Completed" ||
-      order.orderStatus === "Void"
-    ) {
+    const estore = await Estore.findOne({
+      _id: Object(estoreid),
+    });
+    const statusEstore =
+      estore && estore.orderStatus ? estore.orderStatus : "Delivering";
+    if (statusEstore === "Not Processed") {
       if (order.orderType === "void") {
         await updateOrderedProd(order.products, estoreid, true);
       } else {
         await updateOrderedProd(order.products, estoreid, false);
+      }
+    } else if (statusEstore === "Waiting Payment") {
+      if (order.orderStatus !== "Not Processed") {
+        if (order.orderType === "void") {
+          await updateOrderedProd(order.products, estoreid, true);
+        } else {
+          await updateOrderedProd(order.products, estoreid, false);
+        }
+      }
+    } else if (statusEstore === "Processing") {
+      if (
+        order.orderStatus !== "Not Processed" &&
+        order.orderStatus !== "Waiting Payment"
+      ) {
+        if (order.orderType === "void") {
+          await updateOrderedProd(order.products, estoreid, true);
+        } else {
+          await updateOrderedProd(order.products, estoreid, false);
+        }
+      }
+    } else {
+      if (
+        order.orderStatus === "Delivering" ||
+        order.orderStatus === "Completed" ||
+        order.orderStatus === "Void"
+      ) {
+        if (order.orderType === "void") {
+          await updateOrderedProd(order.products, estoreid, true);
+        } else {
+          await updateOrderedProd(order.products, estoreid, false);
+        }
       }
     }
     res.json(order);

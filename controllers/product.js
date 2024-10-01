@@ -555,19 +555,81 @@ exports.receiveProducts = async (req, res) => {
   }
 };
 
-exports.updateProducts = async (req, res) => {
+exports.importProducts = async (req, res) => {
   const estoreid = req.headers.estoreid;
   try {
     const products = req.body.products;
     for (let i = 0; i < products.length; i++) {
-      await Product.findOneAndUpdate(
-        {
-          _id: new ObjectId(products[i]._id),
+      if (products[i].category && ObjectId.isValid(products[i].category)) {
+        products[i] = {
+          ...products[i],
+          category: new ObjectId(products[i].category),
+        };
+      } else {
+        delete products[i].category;
+      }
+
+      if (products[i].brand && ObjectId.isValid(products[i].brand)) {
+        products[i] = {
+          ...products[i],
+          brand: new ObjectId(products[i].brand),
+        };
+      } else {
+        delete products[i].brand;
+      }
+
+      if (
+        products[i].markupType !== "percent" ||
+        products[i].markupType !== "number"
+      ) {
+        products[i] = {
+          ...products[i],
+          markupType: "percent",
+        };
+      }
+
+      if (
+        products[i].discounttype !== "percent" ||
+        products[i].discounttype !== "number"
+      ) {
+        products[i] = {
+          ...products[i],
+          discounttype: "percent",
+        };
+      }
+
+      if (products[i]._id && ObjectId.isValid(products[i]._id)) {
+        await Product.findOneAndUpdate(
+          {
+            _id: new ObjectId(products[i]._id),
+            estoreid: new ObjectId(estoreid),
+          },
+          products[i],
+          { new: true }
+        );
+      } else {
+        const checkExist = await Product.findOne({
+          slug: slugify(products[i].title.toString().toLowerCase()),
           estoreid: new ObjectId(estoreid),
-        },
-        products[i],
-        { new: true }
-      );
+        });
+        if (checkExist) {
+          await Product.findOneAndUpdate(
+            {
+              slug: slugify(products[i].title.toString().toLowerCase()),
+              estoreid: new ObjectId(estoreid),
+            },
+            products[i],
+            { new: true }
+          );
+        } else {
+          const product = new Product({
+            ...products[i],
+            slug: slugify(products[i].title.toString().toLowerCase()),
+            estoreid: new ObjectId(estoreid),
+          });
+          await product.save();
+        }
+      }
     }
     res.json({ ok: true });
   } catch (error) {
