@@ -131,7 +131,9 @@ exports.loadInitProducts = async (req, res) => {
       const products = await Product.find({
         estoreid: estoreidFrom,
         initial: 1,
-      }).select("-_id -quantity -sold -createdAt -updatedAt -__v");
+      }).select(
+        "-_id -discounttype -quantity -sold -createdAt -updatedAt -__v"
+      );
 
       for (let i = products.length; i; i--) {
         let j = Math.floor(Math.random() * i);
