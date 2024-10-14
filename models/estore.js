@@ -330,6 +330,7 @@ const estoreSchema = new mongoose.Schema(
       default: "Delivering",
       enum: ["Not Processed", "Waiting Payment", "Processing", "Delivering"],
     },
+    defaultEstore: Boolean,
   },
   { timestamps: true }
 );

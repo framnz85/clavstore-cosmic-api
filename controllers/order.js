@@ -549,18 +549,56 @@ exports.saveCartOrder = async (req, res) => {
   }
 };
 
+const removeUpdates = async (
+  estoreid,
+  statusEstore,
+  orderType,
+  orderStatus,
+  products
+) => {
+  if (statusEstore === "Not Processed") {
+    if (orderType === "void") {
+      await updateOrderedProd(products, estoreid, true);
+    } else {
+      await updateOrderedProd(products, estoreid, false);
+    }
+  } else if (statusEstore === "Waiting Payment") {
+    if (orderStatus !== "Not Processed") {
+      if (orderType === "void") {
+        await updateOrderedProd(products, estoreid, true);
+      } else {
+        await updateOrderedProd(products, estoreid, false);
+      }
+    }
+  } else if (statusEstore === "Processing") {
+    if (orderStatus !== "Not Processed" && orderStatus !== "Waiting Payment") {
+      if (orderType === "void") {
+        await updateOrderedProd(products, estoreid, true);
+      } else {
+        await updateOrderedProd(products, estoreid, false);
+      }
+    }
+  } else {
+    if (
+      orderStatus === "Delivering" ||
+      orderStatus === "Completed" ||
+      orderStatus === "Void"
+    ) {
+      if (orderType === "void") {
+        await updateOrderedProd(products, estoreid, true);
+      } else {
+        await updateOrderedProd(products, estoreid, false);
+      }
+    }
+  }
+};
+
 exports.updateOrderStatus = async (req, res) => {
   let checkProdQty = {};
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
-  const {
-    orderid,
-    orderStatus,
-    statusHistory,
-    orderPastStat,
-    orderType,
-    orderedBy,
-  } = req.body;
+  const { orderid, orderStatus, statusHistory, orderType, orderedBy } =
+    req.body;
 
   try {
     const user = await User.findOne({ email }).exec();
@@ -613,12 +651,14 @@ exports.updateOrderStatus = async (req, res) => {
           if (orderType === "web" && order.orderStatus === "Completed") {
             createRaffle(estoreid, user, order);
           }
-          if (
-            orderType === "web" &&
-            orderStatus === "Cancelled" &&
-            orderPastStat === "Delivering"
-          ) {
-            await updateOrderedProd(order.products, estoreid, false);
+          if (orderStatus === "Cancelled") {
+            removeUpdates(
+              estoreid,
+              statusEstore,
+              orderType,
+              orderStatus,
+              order.products
+            );
           }
         } else {
           res.json({ err: "Order does not exist." });
@@ -714,48 +754,19 @@ exports.deleteAdminOrder = async (req, res) => {
       _id: new ObjectId(orderid),
       estoreid: Object(estoreid),
     });
-    const estore = await Estore.findOne({
-      _id: Object(estoreid),
-    });
-    const statusEstore =
-      estore && estore.orderStatus ? estore.orderStatus : "Delivering";
-    if (statusEstore === "Not Processed") {
-      if (order.orderType === "void") {
-        await updateOrderedProd(order.products, estoreid, true);
-      } else {
-        await updateOrderedProd(order.products, estoreid, false);
-      }
-    } else if (statusEstore === "Waiting Payment") {
-      if (order.orderStatus !== "Not Processed") {
-        if (order.orderType === "void") {
-          await updateOrderedProd(order.products, estoreid, true);
-        } else {
-          await updateOrderedProd(order.products, estoreid, false);
-        }
-      }
-    } else if (statusEstore === "Processing") {
-      if (
-        order.orderStatus !== "Not Processed" &&
-        order.orderStatus !== "Waiting Payment"
-      ) {
-        if (order.orderType === "void") {
-          await updateOrderedProd(order.products, estoreid, true);
-        } else {
-          await updateOrderedProd(order.products, estoreid, false);
-        }
-      }
-    } else {
-      if (
-        order.orderStatus === "Delivering" ||
-        order.orderStatus === "Completed" ||
-        order.orderStatus === "Void"
-      ) {
-        if (order.orderType === "void") {
-          await updateOrderedProd(order.products, estoreid, true);
-        } else {
-          await updateOrderedProd(order.products, estoreid, false);
-        }
-      }
+    if (order.orderStatus !== "Cancelled") {
+      const estore = await Estore.findOne({
+        _id: Object(estoreid),
+      });
+      const statusEstore =
+        estore && estore.orderStatus ? estore.orderStatus : "Delivering";
+      removeUpdates(
+        estoreid,
+        statusEstore,
+        order.orderType,
+        order.orderStatus,
+        order.products
+      );
     }
     res.json(order);
   } catch (error) {

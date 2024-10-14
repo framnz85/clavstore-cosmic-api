@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   getEstore,
+  getDefaultEstore,
   getReseller,
   getEstores,
   getDedicatedEstores,
@@ -10,13 +11,17 @@ const {
   updateEstore,
   createEstore,
   addNewEstore,
+  copyingEstore,
   approveCosmic,
   updateEstoreReseller,
   updateEstoreCounters,
+  updateEstoresDefault,
+  deletingEstore,
 } = require("../controllers/estore");
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
 
 router.get("/gratis/estore/:slug", getEstore);
+router.get("/gratis/default-estore", getDefaultEstore);
 router.get("/gratis/reseller/:id", getReseller);
 router.get("/gratis/dedicated-estores", getDedicatedEstores);
 router.post("/gratis/estores", authCheck, adminGratisCheck, getEstores);
@@ -35,6 +40,12 @@ router.post(
   adminGratisCheck,
   addNewEstore
 );
+router.post(
+  "/gratis/copying-estore/:resellid",
+  authCheck,
+  adminGratisCheck,
+  copyingEstore
+);
 router.put(
   "/gratis/approve-cosmic",
   authCheck,
@@ -48,5 +59,12 @@ router.put(
   updateEstoreReseller
 );
 router.put("/gratis/update-estore-counters", updateEstoreCounters);
+router.put("/gratis/update-estores-default", updateEstoresDefault);
+router.delete(
+  "/gratis/delete-estore/:deleteid",
+  authCheck,
+  adminGratisCheck,
+  deletingEstore
+);
 
 module.exports = router;
