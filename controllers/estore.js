@@ -599,30 +599,43 @@ exports.updateEstoresDefault = async (req, res) => {
 
 exports.deletingEstore = async (req, res) => {
   const deleteid = req.params.deleteid;
+  const email = req.user.email;
+
   try {
-    await Estore.findOneAndDelete({
-      _id: new ObjectId(deleteid),
-    }).exec();
+    const user = await User.findOne({ email }).exec();
+    if (user) {
+      await Estore.findOneAndDelete({
+        _id: new ObjectId(deleteid),
+      }).exec();
 
-    await Brand.deleteMany({ estoreid: new ObjectId(deleteid) });
-    await Cart.deleteMany({ estoreid: new ObjectId(deleteid) });
-    await Category.deleteMany({ estoreid: new ObjectId(deleteid) });
-    await Order.deleteMany({ estoreid: new ObjectId(deleteid) });
-    await Payment.deleteMany({ estoreid: new ObjectId(deleteid) });
-    await Product.deleteMany({ estoreid: new ObjectId(deleteid) });
-    await Raffle.deleteMany({ estoreid: new ObjectId(deleteid) });
-    await Rating.deleteMany({ estoreid: new ObjectId(deleteid) });
-    await User.deleteMany({
-      estoreid: new ObjectId(deleteid),
-      role: { $ne: "admin" },
-    });
+      await Brand.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await Cart.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await Category.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await Order.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await Payment.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await Product.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await Raffle.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await Rating.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await User.deleteMany({
+        estoreid: new ObjectId(deleteid),
+        role: { $ne: "admin" },
+      });
 
-    await MyCountry.deleteMany({ estoreid: new ObjectId(deleteid) });
-    await MyAddiv1.deleteMany({ estoreid: new ObjectId(deleteid) });
-    await MyAddiv2.deleteMany({ estoreid: new ObjectId(deleteid) });
-    await MyAddiv3.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await MyCountry.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await MyAddiv1.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await MyAddiv2.deleteMany({ estoreid: new ObjectId(deleteid) });
+      await MyAddiv3.deleteMany({ estoreid: new ObjectId(deleteid) });
 
-    res.json({ ok: true });
+      const newEstore = await Estore.findOne({}).exec();
+
+      await User.findByIdAndUpdate(user._id, {
+        estoreid: newEstore._id,
+      }).exec();
+
+      res.json({ ok: true });
+    } else {
+      res.json({ err: "Cannot fetch the user." });
+    }
   } catch (error) {
     res.json({ err: "Deleting an estore failed. " + error.message });
   }
