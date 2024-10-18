@@ -72,57 +72,6 @@ exports.getUserDetails = async (req, res) => {
   }
 };
 
-exports.getUserToAffiliate = async (req, res) => {
-  const email = req.user.email;
-  const refEmail = req.params.email;
-
-  try {
-    const user = await User.findOne({
-      email,
-    }).exec();
-    const referral = await User.findOne({
-      email: refEmail,
-      role: "admin",
-    })
-      .populate({
-        path: "estoreid",
-        populate: {
-          path: "country",
-        },
-      })
-      .exec();
-    if (referral) {
-      if (
-        (referral && referral.refid) ||
-        (referral.estoreid &&
-          referral.estoreid.upStatus &&
-          referral.estoreid &&
-          referral.estoreid.upStatus === "Active")
-      ) {
-        res.json({
-          err: "Sorry, the user under this email is already a referral of somebody else or is already a paid user.",
-        });
-      } else {
-        delete referral.estoreid;
-        await User.findOneAndUpdate(
-          { _id: new ObjectId(referral._id) },
-          { refid: user._id },
-          {
-            new: true,
-          }
-        );
-        res.json(referral);
-      }
-    } else {
-      res.json({ err: "No user found under this email" });
-    }
-  } catch (error) {
-    res.json({
-      err: "Fetching user information by email fails. " + error.message,
-    });
-  }
-};
-
 exports.getRaffleEntries = async (req, res) => {
   const email = req.user.email;
   const estoreid = req.headers.estoreid;
@@ -155,40 +104,6 @@ exports.getTopEntries = async (req, res) => {
     ]).exec();
     entries = await populateRaffle(entries);
     res.json(entries);
-  } catch (error) {
-    res.json({ err: "Fetching top raffle entries fails. " + error.message });
-  }
-};
-
-exports.getAffiliates = async (req, res) => {
-  const email = req.user.email;
-  const estoreid = req.headers.estoreid;
-
-  try {
-    const { sortkey, sort, currentPage, pageSize } = req.body;
-
-    const user = await User.findOne({
-      email,
-      estoreid: new ObjectId(estoreid),
-    }).exec();
-    const referrals = await User.find({
-      refid: new ObjectId(user._id),
-      role: "admin",
-    })
-      .skip((currentPage - 1) * pageSize)
-      .sort({ [sortkey]: sort })
-      .limit(pageSize)
-      .exec();
-    const countReferral = await User.find({
-      refid: new ObjectId(user._id),
-      role: "admin",
-    }).exec();
-    const earnings = await User.aggregate([
-      { $match: { refid: new ObjectId(user._id) } },
-      { $group: { _id: null, amount: { $sum: "$refCommission" } } },
-    ]);
-    const withdraw = 0;
-    res.json({ referrals, earnings, withdraw, count: countReferral.length });
   } catch (error) {
     res.json({ err: "Fetching top raffle entries fails. " + error.message });
   }
