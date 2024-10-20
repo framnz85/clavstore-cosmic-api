@@ -609,15 +609,78 @@ exports.updateOrderStatus = async (req, res) => {
         estoreid: Object(estoreid),
       });
 
-      if (
-        orderType === "web" &&
-        orderStatus !== "Cancelled" &&
-        orderStatus !== "Completed"
-      ) {
-        checkProdQty = await checkOrderedProd(
-          orderForChecking.products,
-          estoreid
-        );
+      const estore = await Estore.findOne({
+        _id: Object(estoreid),
+      });
+
+      const statusEstore =
+        estore && estore.orderStatus ? estore.orderStatus : "Delivering";
+
+      if (statusEstore === "Not Processed") {
+        if (
+          orderType === "web" &&
+          orderStatus !== "Cancelled" &&
+          orderStatus !== "Completed" &&
+          orderStatus !== "Delivering" &&
+          orderStatus !== "Processing" &&
+          orderStatus !== "Waiting Payment" &&
+          orderStatus !== "Not Processed"
+        ) {
+          checkProdQty = await checkOrderedProd(
+            orderForChecking.products,
+            estoreid
+          );
+        }
+      } else if (statusEstore === "Waiting Payment") {
+        if (
+          orderType === "web" &&
+          orderStatus !== "Cancelled" &&
+          orderStatus !== "Completed" &&
+          orderStatus !== "Delivering" &&
+          orderStatus !== "Processing" &&
+          orderStatus !== "Waiting Payment"
+        ) {
+          checkProdQty = await checkOrderedProd(
+            orderForChecking.products,
+            estoreid
+          );
+        }
+      } else if (statusEstore === "Processing") {
+        if (
+          orderType === "web" &&
+          orderStatus !== "Cancelled" &&
+          orderStatus !== "Completed" &&
+          orderStatus !== "Delivering" &&
+          orderStatus !== "Processing"
+        ) {
+          checkProdQty = await checkOrderedProd(
+            orderForChecking.products,
+            estoreid
+          );
+        }
+      } else if (statusEstore === "Delivering") {
+        if (
+          orderType === "web" &&
+          orderStatus !== "Cancelled" &&
+          orderStatus !== "Completed" &&
+          orderStatus !== "Delivering"
+        ) {
+          checkProdQty = await checkOrderedProd(
+            orderForChecking.products,
+            estoreid
+          );
+        }
+      } else {
+        if (
+          orderType === "web" &&
+          orderStatus !== "Cancelled" &&
+          orderStatus !== "Completed"
+        ) {
+          checkProdQty = await checkOrderedProd(
+            orderForChecking.products,
+            estoreid
+          );
+        }
       }
 
       if (checkProdQty && checkProdQty.err) {
@@ -637,13 +700,6 @@ exports.updateOrderStatus = async (req, res) => {
         );
         if (order) {
           res.json(order);
-
-          const estore = await Estore.findOne({
-            _id: Object(estoreid),
-          });
-
-          const statusEstore =
-            estore && estore.orderStatus ? estore.orderStatus : "Delivering";
 
           if (orderType === "web" && orderStatus === statusEstore) {
             await updateOrderedProd(order.products, estoreid, true);
