@@ -32,17 +32,26 @@ exports.populateProduct = async (products, estoreid) => {
       return {
         ...(product._doc ? product._doc : product),
         category: categoryList.find(
-          (cat) => cat._id.toString() === product.category.toString()
+          (cat) =>
+            cat._id &&
+            product.category &&
+            cat._id.toString() === product.category.toString()
         ),
         brand: brandList.find(
-          (bra) => bra._id.toString() === product.brand.toString()
+          (bra) =>
+            bra._id &&
+            product.brand &&
+            bra._id.toString() === product.brand.toString()
         ),
       };
     } else {
       return {
         ...(product._doc ? product._doc : product),
         category: categoryList.find(
-          (cat) => cat._id.toString() === product.category.toString()
+          (cat) =>
+            cat._id &&
+            product.category &&
+            cat._id.toString() === product.category.toString()
         ),
       };
     }
@@ -108,7 +117,10 @@ exports.populateRaffle = async (entries) => {
     return {
       ...(entry._doc ? entry._doc : entry),
       owner: ownerList.find(
-        (owner) => owner._id.toString() === entry.owner.toString()
+        (owner) =>
+          owner._id &&
+          entry.owner &&
+          owner._id.toString() === entry.owner.toString()
       ),
     };
   });
@@ -133,7 +145,10 @@ exports.populateEstore = async (estores) => {
     return {
       ...(estore._doc ? estore._doc : estore),
       owner: ownerList.find(
-        (owner) => owner.estoreid.toString() === estore._id.toString()
+        (owner) =>
+          estore._id &&
+          owner.estoreid &&
+          owner.estoreid.toString() === estore._id.toString()
       ),
     };
   });

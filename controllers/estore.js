@@ -29,6 +29,7 @@ exports.getEstore = async (req, res) => {
     })
       .populate("country")
       .exec();
+    console.log(req.params.slug);
     res.json(estore);
   } catch (error) {
     res.json({ err: "Fetching store information fails. " + error.message });
