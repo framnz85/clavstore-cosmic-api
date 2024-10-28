@@ -356,10 +356,13 @@ exports.searchProduct = async (req, res) => {
   }
 
   if (price) {
-    querySearch = { ...querySearch, price: { $gt: price[0], $lt: price[1] } };
+    querySearch = {
+      ...querySearch,
+      price: { $gt: parseFloat(price[0]), $lt: parseFloat(price[1]) },
+    };
     noResultSearch = {
       ...noResultSearch,
-      price: { $gt: price[0], $lt: price[1] },
+      price: { $gt: parseFloat(price[0]), $lt: parseFloat(price[1]) },
     };
   }
   try {

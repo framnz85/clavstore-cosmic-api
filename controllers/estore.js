@@ -29,7 +29,6 @@ exports.getEstore = async (req, res) => {
     })
       .populate("country")
       .exec();
-    console.log(req.params.slug);
     res.json(estore);
   } catch (error) {
     res.json({ err: "Fetching store information fails. " + error.message });
@@ -621,6 +620,15 @@ exports.deletingEstore = async (req, res) => {
         estoreid: new ObjectId(deleteid),
         role: { $ne: "admin" },
       });
+
+      const oldEstore = await Estore.findOne().exec();
+      await Estore.updateMany(
+        {
+          estoreid: new ObjectId(deleteid),
+          role: "admin",
+        },
+        { $set: { estoreid: new ObjectId(oldEstore._id) } }
+      ).exec();
 
       await MyCountry.deleteMany({ estoreid: new ObjectId(deleteid) });
       await MyAddiv1.deleteMany({ estoreid: new ObjectId(deleteid) });
