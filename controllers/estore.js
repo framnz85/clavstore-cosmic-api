@@ -622,7 +622,7 @@ exports.deletingEstore = async (req, res) => {
       });
 
       const oldEstore = await Estore.findOne().exec();
-      await Estore.updateMany(
+      await User.updateMany(
         {
           estoreid: new ObjectId(deleteid),
           role: "admin",

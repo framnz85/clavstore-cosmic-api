@@ -31,7 +31,7 @@ exports.getUserDetails = async (req, res) => {
     if (user) {
       res.json(user);
     } else {
-      const userWithReseller = await User.findOne({
+      let userWithReseller = await User.findOne({
         email,
         resellid: new ObjectId(resellid),
       })
@@ -43,6 +43,22 @@ exports.getUserDetails = async (req, res) => {
         })
         .select("-password -showPass -verifyCode")
         .exec();
+
+      if (
+        userWithReseller &&
+        !userWithReseller.estoreid &&
+        process.env.ESTORE_TYPE === "dedicated"
+      ) {
+        const oldEstore = await Estore.findOne().exec();
+        await User.updateOne(
+          {
+            email,
+          },
+          { $set: { estoreid: new ObjectId(oldEstore._id) } }
+        ).exec();
+        userWithReseller = { ...userWithReseller, estoreid: oldEstore };
+      }
+
       if (userWithReseller) {
         res.json(userWithReseller);
       } else {
