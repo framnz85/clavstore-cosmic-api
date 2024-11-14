@@ -11,6 +11,8 @@ const {
   updateOrderStatus,
   updateProductRating,
   voidProducts,
+  editOrder,
+  submitEditOrder,
   deleteAdminOrder,
   deleteOrder,
 } = require("../controllers/order");
@@ -36,6 +38,8 @@ router.put(
 );
 router.put("/gratis/update-product-rating", authCheck, updateProductRating);
 router.put("/gratis/void-product", authCheck, adminGratisCheck, voidProducts);
+router.put("/gratis/edit-order", authCheck, editOrder);
+router.put("/gratis/submit-edit-order", authCheck, submitEditOrder);
 router.delete(
   "/gratis/delete-admin-order/:orderid",
   authCheck,

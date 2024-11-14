@@ -801,6 +801,115 @@ exports.voidProducts = async (req, res) => {
   }
 };
 
+exports.editOrder = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  const email = req.user.email;
+  const orderid = req.body.orderid;
+
+  try {
+    const user = await User.findOne({ email }).exec();
+    if (user) {
+      const order = await Order.findOne({
+        _id: new ObjectId(orderid),
+        estoreid: new ObjectId(estoreid),
+      }).exec();
+      if (order) {
+        const productsForCart = order.products.map((prod) => ({
+          product: prod.product,
+          count: prod.count,
+          excess: prod.excess,
+          supplierPrice: prod.supplierPrice,
+          price: prod.price,
+        }));
+        const productsForRes = [];
+        for (i = 0; i < order.products.length; i++) {
+          const result = await Product.findOne({
+            _id: new ObjectId(order.products[i].product),
+          })
+            .populate("category")
+            .populate("brand")
+            .exec();
+          productsForRes.push({
+            ...result._doc,
+            count: order.products[i].count,
+          });
+        }
+        await Cart.deleteMany({
+          orderedBy: user._id,
+          estoreid: new ObjectId(estoreid),
+        }).exec();
+
+        Cart.collection.insertOne({
+          estoreid: new ObjectId(estoreid),
+          products: productsForCart,
+          cartTotal: order.cartTotal,
+          orderedBy: user._id,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          __v: 0,
+        });
+        res.json(productsForRes);
+      } else {
+        res.json({ err: "Cannot fetch the order." });
+      }
+    } else {
+      res.json({ err: "Cannot fetch the user." });
+    }
+  } catch (error) {
+    res.json({ err: "Editing order fails. " + error.message });
+  }
+};
+
+exports.submitEditOrder = async (req, res) => {
+  const orderid = req.body.orderid;
+  const delfee = req.body.delfee;
+  const discount = req.body.discount;
+  const servefee = req.body.servefee;
+  const estoreid = req.headers.estoreid;
+  const email = req.user.email;
+
+  try {
+    const user = await User.findOne({ email }).exec();
+    if (user) {
+      const cart = await Cart.findOne({
+        orderedBy: user._id,
+        estoreid: Object(estoreid),
+      });
+      const checkProdQty = await checkOrderedProd(cart.products, estoreid);
+
+      if (checkProdQty && checkProdQty.err) {
+        res.json({ err: checkProdQty.err, backToCart: true });
+      } else {
+        const order = await Order.findOneAndUpdate(
+          {
+            _id: new ObjectId(orderid),
+            estoreid: Object(estoreid),
+          },
+          {
+            products: cart.products,
+            cartTotal: cart.cartTotal,
+            delfee,
+            discount,
+            servefee,
+          },
+          { new: true }
+        );
+        if (order) {
+          await Cart.deleteMany({
+            orderedBy: user._id,
+            estoreid: Object(estoreid),
+          });
+        }
+        res.json({ ok: true });
+      }
+    } else {
+      res.json({ err: "Cannot fetch the cart details." });
+    }
+  } catch (error) {
+    res.json({ err: "Updating order fails. " + error.message });
+  }
+};
+
 exports.deleteAdminOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const orderid = req.params.orderid;

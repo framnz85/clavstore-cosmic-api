@@ -246,6 +246,7 @@ const estoreSchema = new mongoose.Schema(
         default: [
           "dashboard",
           "orders",
+          "editorders",
           "cancelorders",
           "deleteorders",
           "category",
@@ -271,6 +272,7 @@ const estoreSchema = new mongoose.Schema(
         default: [
           "dashboard",
           "orders",
+          "editorders",
           "cancelorders",
           "deleteorders",
           "category",
