@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   getEstore,
+  getEstoreById,
   getDefaultEstore,
   getReseller,
   getEstores,
@@ -21,6 +22,7 @@ const {
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
 
 router.get("/gratis/estore/:slug", getEstore);
+router.get("/gratis/estore-by-id/:estoreid", getEstoreById);
 router.get("/gratis/default-estore", getDefaultEstore);
 router.get("/gratis/reseller/:id", getReseller);
 router.get("/gratis/dedicated-estores", getDedicatedEstores);

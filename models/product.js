@@ -64,6 +64,12 @@ const productSchema = new mongoose.Schema(
     },
     wprice: Number,
     wcount: Number,
+    wholesale: [
+      {
+        wprice: Number,
+        wcount: Number,
+      },
+    ],
     category: {
       type: ObjectId,
       ref: "GratisCategory",

@@ -837,7 +837,6 @@ exports.deleteAddiv1 = async (req, res) => {
 
     res.json({ ok: true });
   } catch (error) {
-    console.log(error);
     res.status(400).send("Location delete failed.");
   }
 };

@@ -25,7 +25,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       index: true,
-      unique: true,
     },
     emailConfirm: {
       type: Boolean,
@@ -44,6 +43,7 @@ const userSchema = new mongoose.Schema(
     },
     address: {
       details: String,
+      zipcode: String,
       country: {},
       addiv1: {},
       addiv2: {},
@@ -78,6 +78,8 @@ const userSchema = new mongoose.Schema(
     superAdmin: Boolean,
     resellid: ObjectId,
     deleteAccount: { request: Boolean, reasons: Array },
+    wishlist: [{ type: ObjectId, ref: "Product" }],
+    wholesale: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

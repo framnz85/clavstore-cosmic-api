@@ -294,11 +294,24 @@ exports.updateCart = async (req, res) => {
           price = cart[i].price;
         } else {
           if (
-            productFromDb.wprice &&
-            productFromDb.wprice > 0 &&
-            cart[i].count >= productFromDb.wcount
+            (user.role === "admin" || user.wholesale) &&
+            productFromDb.wholesale &&
+            productFromDb.wholesale.length > 0
           ) {
-            price = productFromDb.wprice;
+            const wholesales = productFromDb.wholesale.filter(
+              (wsale) => wsale.wcount <= cart[i].count
+            );
+            if (wholesales.length > 0) {
+              const largestCount = Math.max(
+                ...wholesales.map((large) => large.wcount)
+              );
+              const largestWholesale = wholesales.filter(
+                (wsale) => wsale.wcount === largestCount
+              );
+              price = largestWholesale[0].wprice;
+            } else {
+              price = productFromDb.price;
+            }
           } else {
             price = productFromDb.price;
           }

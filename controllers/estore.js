@@ -35,6 +35,25 @@ exports.getEstore = async (req, res) => {
   }
 };
 
+exports.getEstoreById = async (req, res) => {
+  const resellid = req.headers.resellid;
+  try {
+    if (ObjectId.isValid(req.params.estoreid)) {
+      const estore = await Estore.findOne({
+        _id: new ObjectId(req.params.estoreid),
+        resellid: new ObjectId(resellid),
+      })
+        .populate("country")
+        .exec();
+      res.json(estore);
+    } else {
+      res.json({ err: "No store exist with this ID" });
+    }
+  } catch (error) {
+    res.json({ err: "Fetching store information fails. " + error.message });
+  }
+};
+
 exports.getDefaultEstore = async (req, res) => {
   const resellid = req.headers.resellid;
   try {

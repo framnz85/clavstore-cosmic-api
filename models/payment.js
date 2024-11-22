@@ -10,6 +10,7 @@ const paymentSchema = new mongoose.Schema(
     accNumber: String,
     accDetails: String,
     msgLink: String,
+    buttonText: String,
     images: Array,
     allowPackA: { type: Boolean, default: true },
     allowPackB: { type: Boolean, default: true },

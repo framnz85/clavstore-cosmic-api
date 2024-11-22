@@ -5,6 +5,7 @@ const Raffle = require("../models/raffle");
 const User = require("../models/user");
 const Product = require("../models/product");
 const Estore = require("../models/estore");
+const MyAddiv3 = require("../models/myAddiv3");
 
 exports.populateProduct = async (products, estoreid) => {
   let categories = [];
@@ -343,5 +344,31 @@ exports.updateOrderedProd = async (products, estoreid, updateType) => {
 
   for (i = 0; i < remainingProds.length; i++) {
     await handleUpdateProd(remainingProds[i], estoreid, updateType);
+  }
+};
+
+exports.populateWishlist = async (wishlist, estoreid) => {
+  let prodId = [];
+  wishlist.map((wish) => {
+    prodId.push(wish);
+  });
+
+  const result = await Product.find({
+    _id: { $in: prodId },
+    estoreid: new ObjectId(estoreid),
+  }).exec();
+
+  return result;
+};
+
+exports.populateAddress = async (addiv3, estoreid) => {
+  const result = await MyAddiv3.findOne({
+    _id: new ObjectId(addiv3._id),
+    estoreid: new ObjectId(estoreid),
+  }).exec();
+  if (result) {
+    return result;
+  } else {
+    return addiv3;
   }
 };

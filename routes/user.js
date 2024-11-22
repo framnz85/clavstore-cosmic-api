@@ -16,6 +16,7 @@ const {
   deleteUser,
   deleteAllRaffles,
   sendEmail,
+  addToWishlist,
   deleteAccountRequest,
 } = require("../controllers/user");
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
@@ -32,6 +33,7 @@ router.post("/gratis/all-users", authCheck, adminGratisCheck, getAllUsers);
 router.post("/gratis/user-create/:resellid", createNewUser);
 router.post("/gratis/owner-users/:resellid", authCheck, getResellerUsers);
 router.post("/gratis/user-email", sendEmail);
+router.post("/gratis/add-wishlist", authCheck, addToWishlist);
 router.put("/gratis/user-update", authCheck, updateUser);
 router.put("/gratis/update-customer/:userid", authCheck, updateCustomer);
 router.put("/gratis/user-verify", authCheck, verifyUserEmail);

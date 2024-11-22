@@ -7,12 +7,18 @@ const User = require("../models/user");
 const Estore = require("../models/estore");
 const Raffle = require("../models/raffle");
 
-const { populateRaffle } = require("./common");
+const {
+  populateRaffle,
+  populateWishlist,
+  populateAddress,
+} = require("./common");
 
 exports.getUserDetails = async (req, res) => {
   const email = req.user.email;
   const estoreid = req.headers.estoreid;
   const resellid = req.params.resellid;
+  let wishlist = [];
+  let addiv3 = {};
 
   try {
     const user = await User.findOne({
@@ -29,7 +35,19 @@ exports.getUserDetails = async (req, res) => {
       .select("-password -showPass -verifyCode")
       .exec();
     if (user) {
-      res.json(user);
+      if (user.wishlist && user.wishlist.length > 0) {
+        wishlist = await populateWishlist(user.wishlist, estoreid);
+      }
+      if (user.address && user.address.addiv3 && user.address.addiv3._id) {
+        addiv3 = await populateAddress(user.address.addiv3, estoreid);
+        res.json({
+          ...user._doc,
+          wishlist,
+          address: { ...user.address._doc, addiv3 },
+        });
+      } else {
+        res.json({ ...user._doc, wishlist });
+      }
     } else {
       let userWithReseller = await User.findOne({
         email,
@@ -60,7 +78,29 @@ exports.getUserDetails = async (req, res) => {
       }
 
       if (userWithReseller) {
-        res.json(userWithReseller);
+        if (userWithReseller.wishlist && userWithReseller.wishlist.length > 0) {
+          wishlist = await populateWishlist(
+            userWithReseller.wishlist,
+            estoreid
+          );
+        }
+        if (
+          userWithReseller.address &&
+          userWithReseller.address.addiv3 &&
+          userWithReseller.address.addiv3._id
+        ) {
+          addiv3 = await populateAddress(
+            userWithReseller.address.addiv3,
+            estoreid
+          );
+          res.json({
+            ...userWithReseller._doc,
+            wishlist,
+            address: { ...userWithReseller.address._doc, addiv3 },
+          });
+        } else {
+          res.json({ ...userWithReseller._doc, wishlist });
+        }
       } else {
         const userWithEmail = await User.findOne({
           email,
@@ -75,10 +115,29 @@ exports.getUserDetails = async (req, res) => {
           .select("-password -showPass -verifyCode")
           .exec();
         if (userWithEmail) {
-          res.json(userWithEmail);
+          if (userWithEmail.wishlist && userWithEmail.wishlist.length > 0) {
+            wishlist = await populateWishlist(userWithEmail.wishlist, estoreid);
+          }
+          if (
+            userWithEmail.address &&
+            userWithEmail.address.addiv3 &&
+            userWithEmail.address.addiv3._id
+          ) {
+            addiv3 = await populateAddress(
+              userWithEmail.address.addiv3,
+              estoreid
+            );
+            res.json({
+              ...userWithEmail._doc,
+              wishlist,
+              address: { ...userWithEmail.address._doc, addiv3 },
+            });
+          } else {
+            res.json({ ...userWithEmail._doc, wishlist });
+          }
         } else {
           res.json({
-            err: "Cannot fetch the user details or the user doesn't exist in this store.",
+            err: "The email doesn't exist in this store.",
           });
         }
       }
@@ -188,62 +247,61 @@ exports.getAllUsers = async (req, res) => {
 exports.createNewUser = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const resellid = req.params.resellid;
-  const reseller = req.body.reseller;
 
   try {
-    const user = new User(
-      req.body.refid
-        ? {
-            refid: new ObjectId(req.body.refid),
-            name: req.body.owner,
-            phone: req.body.phone,
-            email: req.body.email,
-            password: md5(req.body.password),
-            showPass: req.body.password,
-            role: req.body.role,
-            address: req.body.address,
-            estoreid: new ObjectId(estoreid),
-            resellid: new ObjectId(resellid),
-          }
-        : {
-            name: req.body.owner,
-            phone: req.body.phone,
-            email: req.body.email,
-            password: md5(req.body.password),
-            showPass: req.body.password,
-            role: req.body.role,
-            address: req.body.address,
-            estoreid: new ObjectId(estoreid),
-            resellid: new ObjectId(resellid),
-          }
-    );
-    await user.save();
-    const token = jwt.sign(
-      { email: req.body.email },
-      process.env.JWT_PRIVATE_KEY
-    );
+    const checkUser = await User.findOne({
+      email: req.body.email,
+      estoreid: new ObjectId(estoreid),
+      resellid: new ObjectId(resellid),
+    }).exec();
 
-    let refUser = {};
-    if (req.body.refid) {
-      refUser = await User.findOne({
-        _id: new ObjectId(req.body.refid),
-        role: "admin",
-      }).exec();
-    }
-
-    res.json({ user, token, refUser });
-  } catch (error) {
-    if (error.code === 11000) {
-      if (reseller && reseller.resellerType) {
-        res.json({ ok: true });
-      } else {
-        res.json({
-          err: `The email ${req.body.email} or phone ${req.body.phone} is already existing`,
-        });
-      }
+    if (checkUser) {
+      res.json({ err: "The email address is already existing on this store" });
     } else {
-      res.json({ err: "Creating new user fails. " + error.message });
+      const user = new User(
+        req.body.refid
+          ? {
+              refid: new ObjectId(req.body.refid),
+              name: req.body.owner,
+              phone: req.body.phone,
+              email: req.body.email,
+              password: md5(req.body.password),
+              showPass: req.body.password,
+              role: req.body.role,
+              address: req.body.address,
+              estoreid: new ObjectId(estoreid),
+              resellid: new ObjectId(resellid),
+            }
+          : {
+              name: req.body.owner,
+              phone: req.body.phone,
+              email: req.body.email,
+              password: md5(req.body.password),
+              showPass: req.body.password,
+              role: req.body.role,
+              address: req.body.address,
+              estoreid: new ObjectId(estoreid),
+              resellid: new ObjectId(resellid),
+            }
+      );
+      await user.save();
+      const token = jwt.sign(
+        { email: req.body.email },
+        process.env.JWT_PRIVATE_KEY
+      );
+
+      let refUser = {};
+      if (req.body.refid) {
+        refUser = await User.findOne({
+          _id: new ObjectId(req.body.refid),
+          role: "admin",
+        }).exec();
+      }
+
+      res.json({ user, token, refUser });
     }
+  } catch (error) {
+    res.json({ err: "Creating new user fails. " + error.message });
   }
 };
 
@@ -353,6 +411,28 @@ exports.sendEmail = async (req, res) => {
       res.json({ err: "Sending welcome email fails. " + error.message });
     }
   );
+};
+
+exports.addToWishlist = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  const prodid = req.body.prodid;
+  const email = req.user.email;
+
+  try {
+    const user = await User.findOneAndUpdate(
+      { email, estoreid: new ObjectId(estoreid) },
+      { $addToSet: { wishlist: prodid } },
+      {
+        new: true,
+      }
+    );
+
+    const wishlist = await populateWishlist(user.wishlist, estoreid);
+
+    res.json(wishlist);
+  } catch (error) {
+    res.json({ err: "Adding wishlist fails. " + error.message });
+  }
 };
 
 exports.updateUser = async (req, res) => {
