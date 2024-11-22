@@ -308,7 +308,11 @@ exports.updateCart = async (req, res) => {
               const largestWholesale = wholesales.filter(
                 (wsale) => wsale.wcount === largestCount
               );
-              price = largestWholesale[0].wprice;
+              if (largestWholesale[0] && largestWholesale[0].wprice) {
+                price = largestWholesale[0].wprice;
+              } else {
+                price = productFromDb.price;
+              }
             } else {
               price = productFromDb.price;
             }
