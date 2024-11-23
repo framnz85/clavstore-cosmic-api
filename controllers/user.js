@@ -43,7 +43,7 @@ exports.getUserDetails = async (req, res) => {
         res.json({
           ...user._doc,
           wishlist,
-          address: { ...user.address._doc, addiv3 },
+          address: { ...user.address, addiv3 },
         });
       } else {
         res.json({ ...user._doc, wishlist });
@@ -96,7 +96,7 @@ exports.getUserDetails = async (req, res) => {
           res.json({
             ...userWithReseller._doc,
             wishlist,
-            address: { ...userWithReseller.address._doc, addiv3 },
+            address: { ...userWithReseller.address, addiv3 },
           });
         } else {
           res.json({ ...userWithReseller._doc, wishlist });
@@ -130,7 +130,7 @@ exports.getUserDetails = async (req, res) => {
             res.json({
               ...userWithEmail._doc,
               wishlist,
-              address: { ...userWithEmail.address._doc, addiv3 },
+              address: { ...userWithEmail.address, addiv3 },
             });
           } else {
             res.json({ ...userWithEmail._doc, wishlist });
