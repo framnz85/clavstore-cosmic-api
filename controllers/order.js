@@ -211,8 +211,11 @@ exports.adminOrders = async (req, res) => {
 
 exports.adminSales = async (req, res) => {
   const estoreid = req.headers.estoreid;
+  const email = req.user.email;
   const dates = req.body.dates;
   let capital = 0;
+  let orders = [];
+
   const startDate = new Date(
     new Date(dates.dateStart).setHours(new Date(dates.dateStart).getHours() + 8)
   );
@@ -223,14 +226,28 @@ exports.adminSales = async (req, res) => {
   startDate.setDate(startDate.getDate() - 1);
 
   try {
-    const orders = await Order.find({
-      estoreid: Object(estoreid),
-      orderStatus: "Completed",
-      createdAt: {
-        $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
-        $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
-      },
-    }).exec();
+    const user = await User.findOne({ email }).exec();
+
+    if (user.role === "cashier") {
+      orders = await Order.find({
+        estoreid: Object(estoreid),
+        orderStatus: "Completed",
+        createdBy: user._id,
+        createdAt: {
+          $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
+          $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
+        },
+      }).exec();
+    } else {
+      orders = await Order.find({
+        estoreid: Object(estoreid),
+        orderStatus: "Completed",
+        createdAt: {
+          $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
+          $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
+        },
+      }).exec();
+    }
 
     orders.forEach((order) => {
       capital =
