@@ -12,6 +12,7 @@ const estoreSchema = new mongoose.Schema(
     email: String,
     image: Object,
     logo: Object,
+    logoSetting: Object,
     images: {
       type: Array,
     },
