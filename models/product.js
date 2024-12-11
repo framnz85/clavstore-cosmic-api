@@ -122,6 +122,18 @@ const productSchema = new mongoose.Schema(
       default: true,
     },
     waiting: Object,
+    vatExempt: Number,
+    vatExemptType: {
+      type: String,
+      enum: ["percent", "number"],
+      default: "percent",
+    },
+    zeroRate: Number,
+    zeroRateType: {
+      type: String,
+      enum: ["percent", "number"],
+      default: "percent",
+    },
   },
   { timestamps: true }
 );

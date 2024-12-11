@@ -60,6 +60,10 @@ const orderSchema = new mongoose.Schema(
     estoreid: ObjectId,
     delAddress: String,
     orderNotes: String,
+    vatSales: Number,
+    vatTwelve: Number,
+    vatExempt: Number,
+    zeroRated: Number,
   },
   { timestamps: true }
 );

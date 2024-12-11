@@ -337,6 +337,37 @@ const estoreSchema = new mongoose.Schema(
       enum: ["Not Processed", "Waiting Payment", "Processing", "Delivering"],
     },
     defaultEstore: Boolean,
+    receiptSetting: {
+      showLogo: Boolean,
+      showAddress: Boolean,
+      showContact: Boolean,
+      showOrderCode: Boolean,
+      customDetails: [
+        {
+          description: String,
+          value: String,
+        },
+      ],
+      showOrderedBy: Boolean,
+      showSenior: Boolean,
+      showVat: Boolean,
+      showCashier: Boolean,
+      showDateOrdered: Boolean,
+      showReceivedBy: Boolean,
+      customeNote: String,
+    },
+    vatExempt: Number,
+    vatExemptType: {
+      type: String,
+      enum: ["percent", "number"],
+      default: "percent",
+    },
+    zeroRate: Number,
+    zeroRateType: {
+      type: String,
+      enum: ["percent", "number"],
+      default: "percent",
+    },
   },
   { timestamps: true }
 );
