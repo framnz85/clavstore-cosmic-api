@@ -36,25 +36,6 @@ exports.getEstore = async (req, res) => {
   }
 };
 
-exports.getEstoreById = async (req, res) => {
-  const resellid = req.headers.resellid;
-  try {
-    if (ObjectId.isValid(req.params.estoreid)) {
-      const estore = await Estore.findOne({
-        _id: new ObjectId(req.params.estoreid),
-        resellid: new ObjectId(resellid),
-      })
-        .populate("country")
-        .exec();
-      res.json(estore);
-    } else {
-      res.json({ err: "No store exist with this ID" });
-    }
-  } catch (error) {
-    res.json({ err: "Fetching store information fails. " + error.message });
-  }
-};
-
 exports.getDefaultEstore = async (req, res) => {
   const resellid = req.headers.resellid;
   try {
@@ -161,6 +142,43 @@ exports.getEstoreCounters = async (req, res) => {
       )
       .exec();
     res.json(estore);
+  } catch (error) {
+    res.json({ err: "Fetching store information fails. " + error.message });
+  }
+};
+
+exports.searchEstoreByText = async (req, res) => {
+  const resellid = req.headers.resellid;
+  const searchText = req.body.searchText;
+
+  try {
+    if (ObjectId.isValid(searchText)) {
+      const estore = await Estore.find({
+        _id: new ObjectId(searchText),
+        resellid: new ObjectId(resellid),
+        $or: [
+          { upgradeType: "2" },
+          { upStatus2: "Active" },
+          { showInApp: true },
+        ],
+      })
+        .populate("country")
+        .exec();
+      res.json(estore);
+    } else {
+      const estore = await Estore.find({
+        $text: { $search: searchText },
+        resellid: new ObjectId(resellid),
+        $or: [
+          { upgradeType: "2" },
+          { upStatus2: "Active" },
+          { showInApp: true },
+        ],
+      })
+        .populate("country")
+        .exec();
+      res.json(estore);
+    }
   } catch (error) {
     res.json({ err: "Fetching store information fails. " + error.message });
   }

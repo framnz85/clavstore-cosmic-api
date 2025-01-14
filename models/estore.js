@@ -212,6 +212,17 @@ const estoreSchema = new mongoose.Schema(
       },
     ],
     resellid: ObjectId,
+    showInApp: { type: Boolean, default: false },
+    webHomepage: {
+      type: String,
+      enum: ["Home", "Stores", "Random"],
+      default: "Home",
+    },
+    appHomepage: {
+      type: String,
+      enum: ["Home", "Stores", "Random"],
+      default: "Home",
+    },
     reseller: {
       appName: String,
       homeImage: Object,

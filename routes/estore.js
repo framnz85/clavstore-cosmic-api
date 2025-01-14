@@ -2,13 +2,13 @@ const express = require("express");
 const router = express.Router();
 const {
   getEstore,
-  getEstoreById,
   getDefaultEstore,
   getReseller,
   getPackage,
   getPackages,
   getDedicatedEstores,
   getEstoreCounters,
+  searchEstoreByText,
   updateEstore,
   createEstore,
   addNewEstore,
@@ -20,13 +20,13 @@ const {
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
 
 router.get("/gratis/estore/:slug", getEstore);
-router.get("/gratis/estore-by-id/:estoreid", getEstoreById);
 router.get("/gratis/default-estore", getDefaultEstore);
 router.get("/gratis/reseller/:id", getReseller);
 router.get("/gratis/get-package/:id", getPackage);
 router.get("/gratis/get-packages/:packDefault", getPackages);
 router.get("/gratis/dedicated-estores", getDedicatedEstores);
 router.get("/gratis/estore-counters/:estoreid", getEstoreCounters);
+router.post("/gratis/estore-by-id-text", searchEstoreByText);
 router.post("/gratis/estore-update", authCheck, adminGratisCheck, updateEstore);
 router.post("/gratis/estore-create/:resellid", createEstore);
 router.post(
