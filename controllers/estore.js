@@ -119,6 +119,7 @@ exports.getPackages = async (req, res) => {
 exports.getDedicatedEstores = async (req, res) => {
   try {
     let estores = await Estore.find({
+      status: "active",
       upgradeType: "2",
       upStatus2: "Active",
     }).exec();
@@ -155,6 +156,7 @@ exports.searchEstoreByText = async (req, res) => {
     if (ObjectId.isValid(searchText)) {
       const estore = await Estore.find({
         _id: new ObjectId(searchText),
+        status: "active",
         resellid: new ObjectId(resellid),
         $or: [
           { upgradeType: "2" },
@@ -168,6 +170,7 @@ exports.searchEstoreByText = async (req, res) => {
     } else {
       const estore = await Estore.find({
         $text: { $search: searchText },
+        status: "active",
         resellid: new ObjectId(resellid),
         $or: [
           { upgradeType: "2" },
