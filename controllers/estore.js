@@ -120,8 +120,11 @@ exports.getDedicatedEstores = async (req, res) => {
   try {
     let estores = await Estore.find({
       status: "active",
-      upgradeType: "2",
-      upStatus2: "Active",
+      $or: [
+        { upgradeType: "2" },
+        { upStatus2: "Active" },
+        { showInApp: true, showInList: true },
+      ],
     }).exec();
 
     estores = await populateEstore(estores);
@@ -145,6 +148,31 @@ exports.getEstoreCounters = async (req, res) => {
     res.json(estore);
   } catch (error) {
     res.json({ err: "Fetching store information fails. " + error.message });
+  }
+};
+
+exports.getAllowedEstores = async (req, res) => {
+  const { sortkey, sort, currentPage, pageSize } = req.body;
+
+  try {
+    let estores = await Estore.find({
+      status: "active",
+      $or: [
+        { upgradeType: "2" },
+        { upStatus2: "Active" },
+        { showInApp: true, showInList: true },
+      ],
+    })
+      .skip((currentPage - 1) * pageSize)
+      .sort({ [sortkey]: sort })
+      .limit(pageSize)
+      .exec();
+
+    estores = await populateEstore(estores);
+
+    res.json(estores);
+  } catch (error) {
+    res.json({ err: "Fetching dedicated stores fails. " + error.message });
   }
 };
 

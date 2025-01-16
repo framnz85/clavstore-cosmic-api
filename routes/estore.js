@@ -8,6 +8,7 @@ const {
   getPackages,
   getDedicatedEstores,
   getEstoreCounters,
+  getAllowedEstores,
   searchEstoreByText,
   updateEstore,
   createEstore,
@@ -26,6 +27,7 @@ router.get("/gratis/get-package/:id", getPackage);
 router.get("/gratis/get-packages/:packDefault", getPackages);
 router.get("/gratis/dedicated-estores", getDedicatedEstores);
 router.get("/gratis/estore-counters/:estoreid", getEstoreCounters);
+router.post("/gratis/allowed-estores", getAllowedEstores);
 router.post("/gratis/estore-by-id-text", searchEstoreByText);
 router.post("/gratis/estore-update", authCheck, adminGratisCheck, updateEstore);
 router.post("/gratis/estore-create/:resellid", createEstore);
