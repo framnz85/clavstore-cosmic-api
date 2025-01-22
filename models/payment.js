@@ -14,7 +14,7 @@ const paymentSchema = new mongoose.Schema(
     images: Array,
     purpose: {
       type: String,
-      enum: ["basic", "dedicated", "reseller"],
+      enum: ["basic", "dedicated"],
       default: "basic",
     },
   },

@@ -93,6 +93,7 @@ exports.getPackage = async (req, res) => {
         .exec();
       const payments = await Payment.find({
         estoreid: new ObjectId(req.params.id),
+        purpose: { $ne: "dedicated" },
       }).exec();
       res.json({
         ...package._doc,
@@ -106,11 +107,26 @@ exports.getPackage = async (req, res) => {
 };
 
 exports.getPackages = async (req, res) => {
+  const finalPackages = [];
+  const estoreid = req.headers.estoreid;
+  const packDefault = req.params.packDefault;
   try {
-    const packages = await Package.find({
-      defaultPackage: req.params.packDefault,
-    }).exec();
-    res.json(packages);
+    let packages = [];
+    if (packDefault === "all") {
+      packages = await Package.find().exec();
+    } else {
+      packages = await Package.find({
+        defaultPackage: packDefault,
+      }).exec();
+    }
+    for (let i = 0; i < packages.length; i++) {
+      const payments = await Payment.find({
+        estoreid: new ObjectId(estoreid),
+        purpose: packages[i].defaultPackage,
+      }).exec();
+      finalPackages.push({ ...packages[i]._doc, payments });
+    }
+    res.json(finalPackages);
   } catch (error) {
     res.json({ err: "Getting packages fails. " + error.message });
   }

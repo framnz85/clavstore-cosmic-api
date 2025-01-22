@@ -3,20 +3,24 @@ const ObjectId = require("mongoose").Types.ObjectId;
 const Billing = require("../models/billing");
 const User = require("../models/user");
 
-const findLatestBill = async (estoreid, packid) => {
-  return await Billing.findOne({
-    estoreid: new ObjectId(estoreid),
-    package: new ObjectId(packid),
-    status: "Unpaid",
-  }).sort({ deadline: 1 });
-};
-
 exports.latestBill = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const packid = req.params.packid;
 
   try {
-    const latest = await findLatestBill(estoreid, packid);
+    let latest = {};
+    if (packid === "all") {
+      latest = await Billing.findOne({
+        estoreid: new ObjectId(estoreid),
+        status: "Unpaid",
+      }).sort({ payDeadline: 1 });
+    } else {
+      latest = await Billing.findOne({
+        estoreid: new ObjectId(estoreid),
+        package: new ObjectId(packid),
+        status: "Unpaid",
+      }).sort({ payDeadline: 1 });
+    }
     if (latest) {
       res.json(latest);
     } else {
@@ -29,16 +33,14 @@ exports.latestBill = async (req, res) => {
 
 exports.getBillings = async (req, res) => {
   const estoreid = req.headers.estoreid;
-  const packid = req.params.packid;
 
   try {
     const billings = await Billing.find({
       estoreid: new ObjectId(estoreid),
-      package: new ObjectId(packid),
     })
       .populate("package")
       .populate("bank")
-      .sort({ deadline: 1 });
+      .sort({ payDeadline: 1 });
     res.json(billings);
   } catch (error) {
     res.json({ err: "Getting billings fails. " + error.message });
@@ -52,17 +54,27 @@ exports.addBilling = async (req, res) => {
   let billing = {};
   try {
     const user = await User.findOne({ email }).exec();
-    for (let i = 0; i < values.length; i++) {
-      data = {
-        ...values[i],
-        estoreid: new ObjectId(values[i].estoreid),
-        userid: new ObjectId(user._id),
-        package: new ObjectId(values[i].package),
-      };
-      billing = new Billing(data);
-      await billing.save();
+    const checkExistBill = await Billing.findOne({
+      estoreid: new ObjectId(values[0].estoreid),
+      userid: new ObjectId(user._id),
+      package: new ObjectId(values[0].package),
+      status: "Unpaid",
+    });
+    if (checkExistBill) {
+      res.json({ err: "You have already pending order for this account" });
+    } else {
+      for (let i = 0; i < values.length; i++) {
+        data = {
+          ...values[i],
+          estoreid: new ObjectId(values[i].estoreid),
+          userid: new ObjectId(user._id),
+          package: new ObjectId(values[i].package),
+        };
+        billing = new Billing(data);
+        await billing.save();
+      }
+      res.json({ ok: true });
     }
-    res.json({ ok: true });
   } catch (error) {
     res.json({ err: "Adding billing fails. " + error.message });
   }

@@ -14,12 +14,7 @@ router.get(
   adminGratisCheck,
   latestBill
 );
-router.get(
-  "/gratis/get-billings/:packid",
-  authCheck,
-  adminGratisCheck,
-  getBillings
-);
+router.get("/gratis/get-billings", authCheck, adminGratisCheck, getBillings);
 router.post("/gratis/add-billing", authCheck, adminGratisCheck, addBilling);
 router.put(
   "/gratis/update-billing",
