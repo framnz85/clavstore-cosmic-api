@@ -1,6 +1,5 @@
 const ObjectId = require("mongoose").Types.ObjectId;
 const slugify = require("slugify");
-const SibApiV3Sdk = require("sib-api-v3-sdk");
 
 const Estore = require("../models/estore");
 const Package = require("../models/package");

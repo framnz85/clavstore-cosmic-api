@@ -71,10 +71,7 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    daySales: {
-      type: Number,
-      default: 0,
-    },
+    adsArray: Array,
     superAdmin: Boolean,
     resellid: ObjectId,
     deleteAccount: { request: Boolean, reasons: Array },

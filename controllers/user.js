@@ -6,6 +6,8 @@ const SibApiV3Sdk = require("sib-api-v3-sdk");
 const User = require("../models/user");
 const Estore = require("../models/estore");
 const Raffle = require("../models/raffle");
+const Notification = require("../models/notification");
+const Salesnotify = require("../models/salesnotify");
 
 const {
   populateRaffle,
@@ -181,6 +183,24 @@ exports.getTopEntries = async (req, res) => {
     res.json(entries);
   } catch (error) {
     res.json({ err: "Fetching top raffle entries fails. " + error.message });
+  }
+};
+
+exports.getNotification = async (req, res) => {
+  const day = req.params.day;
+
+  try {
+    const notify = await Notification.find({ day: { $lte: day - 1 } })
+      .limit(2)
+      .sort({ day: -1 })
+      .exec();
+    const sales = await Salesnotify.find({ day: { $lte: day - 1 } })
+      .limit(2)
+      .sort({ day: -1 })
+      .exec();
+    res.json([...notify, ...sales]);
+  } catch (error) {
+    res.json({ err: "Fetching notifications fails. " + error.message });
   }
 };
 

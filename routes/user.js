@@ -5,6 +5,7 @@ const {
   getRaffleEntries,
   getTopEntries,
   getAllUsers,
+  getNotification,
   createNewUser,
   updateUser,
   updateCustomer,
@@ -27,6 +28,12 @@ router.get(
   authCheck,
   adminGratisCheck,
   getTopEntries
+);
+router.get(
+  "/gratis/get-notification/:day",
+  authCheck,
+  adminGratisCheck,
+  getNotification
 );
 router.post("/gratis/all-users", authCheck, adminGratisCheck, getAllUsers);
 router.post("/gratis/user-create/:resellid", createNewUser);
