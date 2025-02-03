@@ -11,6 +11,11 @@ const userSchema = new mongoose.Schema(
       type: ObjectId,
       ref: Estore,
     },
+    estoreids: [
+      {
+        type: ObjectId,
+      },
+    ],
     name: {
       type: String,
       required: true,

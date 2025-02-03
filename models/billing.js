@@ -12,6 +12,11 @@ const billingSchema = new mongoose.Schema(
       ref: Package,
     },
     userid: ObjectId,
+    billType: {
+      type: String,
+      enum: ["downpayment", "monthly"],
+      default: "downpayment",
+    },
     packageDesc: String,
     totalAmount: Number,
     bank: {

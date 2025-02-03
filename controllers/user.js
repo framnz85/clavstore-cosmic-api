@@ -19,6 +19,7 @@ exports.getUserDetails = async (req, res) => {
   const email = req.user.email;
   const estoreid = req.headers.estoreid;
   const resellid = req.params.resellid;
+  const resellslug = req.headers.resellslug;
   let wishlist = [];
   let addiv3 = {};
 
@@ -50,7 +51,7 @@ exports.getUserDetails = async (req, res) => {
       } else {
         res.json({ ...user._doc, wishlist });
       }
-    } else {
+    } else if (resellslug !== "branch") {
       let userWithReseller = await User.findOne({
         email,
         resellid: new ObjectId(resellid),
@@ -69,12 +70,14 @@ exports.getUserDetails = async (req, res) => {
         !userWithReseller.estoreid &&
         process.env.ESTORE_TYPE === "dedicated"
       ) {
-        const oldEstore = await Estore.findOne().exec();
+        const oldEstore = await Estore.findOne({
+          _id: new ObjectId(resellid),
+        }).exec();
         await User.updateOne(
           {
             email,
           },
-          { $set: { estoreid: new ObjectId(oldEstore._id) } }
+          { $set: { estoreid: oldEstore._id } }
         ).exec();
         userWithReseller = { ...userWithReseller, estoreid: oldEstore };
       }
@@ -143,6 +146,8 @@ exports.getUserDetails = async (req, res) => {
           });
         }
       }
+    } else {
+      res.json({ err: "User is not found on this site" });
     }
   } catch (error) {
     res.json({ err: "Fetching user information fails. " + error.message });
@@ -398,7 +403,7 @@ exports.updateUser = async (req, res) => {
       email,
       estoreid: new ObjectId(estoreid),
     });
-    if (checkUser.verifyCode && checkUser.verifyCode.length > 0) {
+    if (checkUser && checkUser.verifyCode && checkUser.verifyCode.length > 0) {
       objValues = { ...req.body, verifyCode: checkUser.verifyCode };
     }
     const user = await User.findOneAndUpdate(
@@ -417,7 +422,7 @@ exports.updateUser = async (req, res) => {
       .select("-password -showPass");
     res.json(user);
   } catch (error) {
-    res.json({ err: "Creating new user fails. " + error.message });
+    res.json({ err: "Updating user fails. " + error.message });
   }
 };
 
@@ -436,7 +441,7 @@ exports.updateCustomer = async (req, res) => {
 
     res.json({ ok: true });
   } catch (error) {
-    res.json({ err: "Creating new user fails. " + error.message });
+    res.json({ err: "Updating customer fails. " + error.message });
   }
 };
 
@@ -477,7 +482,7 @@ exports.verifyUserEmail = async (req, res) => {
       });
     }
   } catch (error) {
-    res.json({ err: "Creating new user fails. " + error.message });
+    res.json({ err: "Verifying user email fails. " + error.message });
   }
 };
 

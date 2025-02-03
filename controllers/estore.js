@@ -37,13 +37,24 @@ exports.getEstore = async (req, res) => {
 
 exports.getDefaultEstore = async (req, res) => {
   const resellid = req.headers.resellid;
+  const branchid = req.headers.branchid;
+  const defaultslug = req.headers.defaultslug;
   try {
-    const defaultEstore = await Estore.findOne({
-      defaultEstore: true,
-      resellid: new ObjectId(resellid),
-    })
-      .populate("country")
-      .exec();
+    let defaultEstore = {};
+    if (defaultslug === "branch") {
+      defaultEstore = await Estore.findOne({
+        _id: new ObjectId(branchid),
+      })
+        .populate("country")
+        .exec();
+    } else {
+      defaultEstore = await Estore.findOne({
+        defaultEstore: true,
+        resellid: new ObjectId(resellid),
+      })
+        .populate("country")
+        .exec();
+    }
     if (defaultEstore) {
       res.json(defaultEstore);
     } else {
@@ -542,6 +553,7 @@ exports.updateEstoresDefault = async (req, res) => {
 
 exports.deletingEstore = async (req, res) => {
   const deleteid = req.params.deleteid;
+  const resellid = req.headers.resellid;
   const email = req.user.email;
 
   try {
@@ -564,25 +576,21 @@ exports.deletingEstore = async (req, res) => {
         role: { $ne: "admin" },
       });
 
-      const oldEstore = await Estore.findOne().exec();
+      const oldEstore = await Estore.findOne({
+        _id: new ObjectId(resellid),
+      }).exec();
       await User.updateMany(
         {
           estoreid: new ObjectId(deleteid),
           role: "admin",
         },
-        { $set: { estoreid: new ObjectId(oldEstore._id) } }
+        { $set: { estoreid: oldEstore._id } }
       ).exec();
 
       await MyCountry.deleteMany({ estoreid: new ObjectId(deleteid) });
       await MyAddiv1.deleteMany({ estoreid: new ObjectId(deleteid) });
       await MyAddiv2.deleteMany({ estoreid: new ObjectId(deleteid) });
       await MyAddiv3.deleteMany({ estoreid: new ObjectId(deleteid) });
-
-      const newEstore = await Estore.findOne({}).exec();
-
-      await User.findByIdAndUpdate(user._id, {
-        estoreid: newEstore._id,
-      }).exec();
 
       res.json({ ok: true });
     } else {

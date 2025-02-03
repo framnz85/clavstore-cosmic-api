@@ -2,6 +2,8 @@ const ObjectId = require("mongoose").Types.ObjectId;
 
 const Billing = require("../models/billing");
 const User = require("../models/user");
+const Package = require("../models/package");
+const Payment = require("../models/payment");
 
 exports.latestBill = async (req, res) => {
   const estoreid = req.headers.estoreid;
@@ -28,6 +30,84 @@ exports.latestBill = async (req, res) => {
     }
   } catch (error) {
     res.json({ err: "Getting latest bill fails. " + error.message });
+  }
+};
+
+exports.getHostingBill = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  const resellid = req.headers.resellid;
+  const packid = req.headers.packid;
+  const email = req.user.email;
+  let bank = "";
+  let deadDuration = 0;
+
+  try {
+    const user = await User.findOne({ email }).exec();
+    const package = await Package.findOne({ _id: new ObjectId(packid) });
+    const latestBill = await Billing.findOne({
+      estoreid: new ObjectId(estoreid),
+    }).sort({ payDeadline: -1 });
+    let futureDate = new Date();
+    const latestHostBill = await Billing.findOne({
+      estoreid: new ObjectId(estoreid),
+      package: new ObjectId(packid),
+      billType: "monthly",
+    }).sort({ payDeadline: -1 });
+    if (latestHostBill) {
+      futureDate = new Date();
+      const latestpayDeadline = new Date(latestHostBill.payDeadline);
+      const timeDifference = latestpayDeadline.getTime() - futureDate.getTime();
+      const daysDifference = Math.round(timeDifference / (1000 * 3600 * 24));
+      if (daysDifference > 0) {
+        deadDuration = daysDifference + 31;
+      } else {
+        deadDuration = 31;
+      }
+    } else {
+      deadDuration = package.hostingStart * 31;
+    }
+    futureDate = new Date();
+    const payDeadline = new Date(
+      futureDate.setDate(futureDate.getDate() + deadDuration)
+    ).toLocaleString("en-us", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+    });
+    futureDate = new Date();
+    const billDeadline = new Date(
+      futureDate.setDate(futureDate.getDate() + deadDuration + 31)
+    ).toLocaleString("en-us", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+    });
+    if (latestBill && latestBill.bank) {
+      bank = latestBill.bank;
+    } else {
+      const onePayment = await Payment.findOne({
+        estoreid: new ObjectId(resellid),
+      });
+      bank = onePayment._id;
+    }
+
+    const billing = new Billing({
+      estoreid: new ObjectId(estoreid),
+      package: new ObjectId(packid),
+      userid: user._id,
+      billType: "monthly",
+      packageDesc: package.name + " Monthly Hosting Fee",
+      totalAmount: package.hostingFee,
+      bank,
+      status: "Unpaid",
+      payDeadline,
+      billStatus: "Not Billed",
+      billDeadline,
+    });
+    await billing.save();
+    res.json(billing);
+  } catch (error) {
+    res.json({ err: "Getting billings fails. " + error.message });
   }
 };
 

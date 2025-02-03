@@ -20,6 +20,7 @@ const packageSchema = new mongoose.Schema(
     installTerm6: Number,
     installTerm12: Number,
     hostingFee: Number,
+    hostingStart: Number,
     setupCommission: Number,
     hostingCommission: Number,
     groupChatLink: String,

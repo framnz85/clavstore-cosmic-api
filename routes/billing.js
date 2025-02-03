@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   latestBill,
+  getHostingBill,
   getBillings,
   addBilling,
   updateBilling,
@@ -13,6 +14,12 @@ router.get(
   authCheck,
   adminGratisCheck,
   latestBill
+);
+router.get(
+  "/gratis/get-hosting-billing",
+  authCheck,
+  adminGratisCheck,
+  getHostingBill
 );
 router.get("/gratis/get-billings", authCheck, adminGratisCheck, getBillings);
 router.post("/gratis/add-billing", authCheck, adminGratisCheck, addBilling);
