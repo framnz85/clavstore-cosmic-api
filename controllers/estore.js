@@ -108,6 +108,7 @@ exports.getPackage = async (req, res) => {
       res.json({
         ...package._doc,
         currency: estore.country.currency,
+        reseller: estore.reseller,
         payments,
       });
     }
@@ -129,12 +130,19 @@ exports.getPackages = async (req, res) => {
         defaultPackage: packDefault,
       }).exec();
     }
+    const estore = await Estore.findOne({
+      _id: new ObjectId(estoreid),
+    }).exec();
     for (let i = 0; i < packages.length; i++) {
       const payments = await Payment.find({
         estoreid: new ObjectId(estoreid),
         purpose: packages[i].defaultPackage,
       }).exec();
-      finalPackages.push({ ...packages[i]._doc, payments });
+      finalPackages.push({
+        ...packages[i]._doc,
+        payments,
+        reseller: estore.reseller,
+      });
     }
     res.json(finalPackages);
   } catch (error) {

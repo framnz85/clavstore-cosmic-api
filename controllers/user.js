@@ -510,7 +510,7 @@ exports.changePassword = async (req, res) => {
       res.json({ err: "The old password you have entered is not correct" });
     }
   } catch (error) {
-    res.json({ err: "Deleting user fails. " + error.message });
+    res.json({ err: "Change password fails. " + error.message });
   }
 };
 

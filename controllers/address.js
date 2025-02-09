@@ -15,32 +15,51 @@ exports.listCountry = async (req, res) => {
 };
 
 exports.listAddiv1 = async (req, res) => {
-  const couid = new ObjectId(req.params.couid);
-  const addiv1 = await Addiv1.find({ couid }).sort({ name: 1 }).exec();
-  res.json(addiv1);
+  if (ObjectId.isValid(req.params.couid)) {
+    const couid = new ObjectId(req.params.couid);
+    const addiv1 = await Addiv1.find({ couid }).sort({ name: 1 }).exec();
+    res.json(addiv1);
+  } else {
+    res.json({ err: "Unidentified Location. Please re-login your account." });
+  }
 };
 
 exports.listAddiv2 = async (req, res) => {
-  const couid = new ObjectId(req.params.couid);
-  const addiv1 = new ObjectId(req.params.addiv1);
-  const addiv2 = await Addiv2.find({ couid, adDivId1: addiv1 })
-    .sort({ name: 1 })
-    .exec();
-  res.json(addiv2);
+  if (
+    ObjectId.isValid(req.params.couid) &&
+    ObjectId.isValid(req.params.addiv1)
+  ) {
+    const couid = new ObjectId(req.params.couid);
+    const addiv1 = new ObjectId(req.params.addiv1);
+    const addiv2 = await Addiv2.find({ couid, adDivId1: addiv1 })
+      .sort({ name: 1 })
+      .exec();
+    res.json(addiv2);
+  } else {
+    res.json({ err: "Unidentified Location. Please re-login your account." });
+  }
 };
 
 exports.listAddiv3 = async (req, res) => {
-  const couid = new ObjectId(req.params.couid);
-  const addiv1 = new ObjectId(req.params.addiv1);
-  const addiv2 = new ObjectId(req.params.addiv2);
-  const addiv3 = await Addiv3.find({
-    couid,
-    adDivId1: addiv1,
-    adDivId2: addiv2,
-  })
-    .sort({ name: 1 })
-    .exec();
-  res.json(addiv3);
+  if (
+    ObjectId.isValid(req.params.couid) &&
+    ObjectId.isValid(req.params.addiv1) &&
+    ObjectId.isValid(req.params.addiv2)
+  ) {
+    const couid = new ObjectId(req.params.couid);
+    const addiv1 = new ObjectId(req.params.addiv1);
+    const addiv2 = new ObjectId(req.params.addiv2);
+    const addiv3 = await Addiv3.find({
+      couid,
+      adDivId1: addiv1,
+      adDivId2: addiv2,
+    })
+      .sort({ name: 1 })
+      .exec();
+    res.json(addiv3);
+  } else {
+    res.json({ err: "Unidentified Location. Please re-login your account." });
+  }
 };
 
 exports.copyAllAddiv1 = async (req, res) => {
