@@ -64,7 +64,7 @@ exports.getHostingBill = async (req, res) => {
         deadDuration = 31;
       }
     } else {
-      deadDuration = package.hostingStart * 31;
+      deadDuration = (package.hostingStart ? package.hostingStart : 1) * 31;
     }
     futureDate = new Date();
     const payDeadline = new Date(

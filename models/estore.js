@@ -241,6 +241,8 @@ const estoreSchema = new mongoose.Schema(
       macosAppLink: String,
       macosAppDesc: String,
       macosAppYoutubeId: String,
+      affilaiteVideo: String,
+      affilaiteDetails: String,
     },
     accessibility: {
       moderator: {

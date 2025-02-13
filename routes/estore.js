@@ -23,7 +23,7 @@ const { authCheck, adminGratisCheck } = require("../middlewares/auth");
 router.get("/gratis/estore/:slug", getEstore);
 router.get("/gratis/default-estore", getDefaultEstore);
 router.get("/gratis/reseller/:id", getReseller);
-router.get("/gratis/get-package/:id", getPackage);
+router.get("/gratis/get-package/:id/:packid", getPackage);
 router.get("/gratis/get-packages/:packDefault", getPackages);
 router.get("/gratis/dedicated-estores", getDedicatedEstores);
 router.get("/gratis/estore-counters/:estoreid", getEstoreCounters);

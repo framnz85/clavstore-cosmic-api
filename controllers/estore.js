@@ -90,19 +90,29 @@ exports.getReseller = async (req, res) => {
 };
 
 exports.getPackage = async (req, res) => {
+  const id = req.params.id;
+  const packid = req.params.packid;
+  let package = {};
+
   try {
-    const package = await Package.findOne({
-      defaultPackage: "basic",
-      default: true,
-    }).exec();
+    if (ObjectId.isValid(packid)) {
+      package = await Package.findOne({
+        _id: new ObjectId(packid),
+      }).exec();
+    } else {
+      package = await Package.findOne({
+        defaultPackage: "basic",
+        default: true,
+      }).exec();
+    }
     if (package) {
       const estore = await Estore.findOne({
-        _id: new ObjectId(req.params.id),
+        _id: new ObjectId(id),
       })
         .populate("country")
         .exec();
       const payments = await Payment.find({
-        estoreid: new ObjectId(req.params.id),
+        estoreid: new ObjectId(id),
         purpose: { $ne: "dedicated" },
       }).exec();
       res.json({
@@ -110,6 +120,10 @@ exports.getPackage = async (req, res) => {
         currency: estore.country.currency,
         reseller: estore.reseller,
         payments,
+      });
+    } else {
+      res.json({
+        err: "Error getting the package",
       });
     }
   } catch (error) {
