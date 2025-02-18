@@ -243,6 +243,7 @@ const estoreSchema = new mongoose.Schema(
       macosAppYoutubeId: String,
       affilaiteVideo: String,
       affilaiteDetails: String,
+      withdrawChatlink: String,
     },
     accessibility: {
       moderator: {

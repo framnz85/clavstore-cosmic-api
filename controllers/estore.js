@@ -294,6 +294,7 @@ exports.updateEstore = async (req, res) => {
 exports.createEstore = async (req, res) => {
   const resellid = req.params.resellid;
   const refid = req.body.refid;
+  const upPackage = req.body.upPackage;
   const reseller = req.body.reseller;
   try {
     const checkStoreExist = await Estore.findOne({
@@ -306,15 +307,38 @@ exports.createEstore = async (req, res) => {
       if (!checkEmailExist) {
         const estore = new Estore(
           reseller && reseller.type
+            ? upPackage
+              ? {
+                  name: req.body.name,
+                  email: req.body.email,
+                  slug: slugify(req.body.name.toString().toLowerCase()),
+                  country: new ObjectId(req.body.country),
+                  resellid: new ObjectId(resellid),
+                  reseller,
+                  upgradeType: "1",
+                  upStatus: "Pending",
+                  upPackage: new ObjectId(upPackage),
+                }
+              : {
+                  name: req.body.name,
+                  email: req.body.email,
+                  slug: slugify(req.body.name.toString().toLowerCase()),
+                  country: new ObjectId(req.body.country),
+                  resellid: new ObjectId(resellid),
+                  reseller,
+                  upgradeType: "1",
+                  upStatus: "Pending",
+                }
+            : upPackage
             ? {
                 name: req.body.name,
                 email: req.body.email,
                 slug: slugify(req.body.name.toString().toLowerCase()),
                 country: new ObjectId(req.body.country),
                 resellid: new ObjectId(resellid),
-                reseller,
                 upgradeType: "1",
                 upStatus: "Pending",
+                upPackage: new ObjectId(upPackage),
               }
             : {
                 name: req.body.name,
