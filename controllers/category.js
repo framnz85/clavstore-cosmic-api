@@ -66,7 +66,12 @@ exports.checkImageUser = async (req, res) => {
           ? category.images.filter((img) => img.public_id === publicid)
           : [];
 
-      if (theImage[0].length > 0 && theImage[0].fromid) {
+      if (
+        theImage &&
+        theImage.length > 0 &&
+        theImage[0] &&
+        theImage[0].fromid
+      ) {
         if (theImage[0].fromid === estoreid) {
           res.json({ delete: true });
         } else {
@@ -77,37 +82,21 @@ exports.checkImageUser = async (req, res) => {
       }
     }
   } catch (error) {
+    console.log(error.message);
     res.status(400).send("Checking image user failed.");
   }
 };
 
 exports.addCategory = async (req, res) => {
   const estoreid = req.headers.estoreid;
-  const platform = req.headers.platform;
   const name = req.body.name;
   const images = req.body.images;
   const slug = slugify(req.body.name.toString().toLowerCase());
 
   try {
-    const estore = await Estore.findOne({
-      _id: new ObjectId(estoreid),
-    })
-      .select("categoryLimit")
-      .exec();
-
-    const categoryCount = await Category.countDocuments({
-      estoreid: new ObjectId(estoreid),
-    }).exec();
-
-    if (categoryCount < estore.categoryLimit || platform === "cosmic") {
-      const category = new Category({ name, slug, images, estoreid });
-      await category.save();
-      res.json(category);
-    } else {
-      res.json({
-        err: `Sorry, you already added ${estore.categoryLimit} categories on this account. Go to Upgrades to increase your limit.`,
-      });
-    }
+    const category = new Category({ name, slug, images, estoreid });
+    await category.save();
+    res.json(category);
   } catch (error) {
     res.json({ err: "Adding category fails. " + error.message });
   }
@@ -146,6 +135,50 @@ exports.updateCategory = async (req, res) => {
     res.json({ ...category._doc, itemcount: countProduct.length });
   } catch (error) {
     res.json({ err: "Updating category fails. " + error.message });
+  }
+};
+
+exports.importCategories = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  try {
+    const categories = req.body.categories;
+    for (let i = 0; i < categories.length; i++) {
+      if (categories[i]._id && ObjectId.isValid(categories[i]._id)) {
+        await Category.findOneAndUpdate(
+          {
+            _id: new ObjectId(categories[i]._id),
+            estoreid: new ObjectId(estoreid),
+          },
+          categories[i],
+          { new: true }
+        );
+      } else {
+        const checkExist = await Category.findOne({
+          slug: slugify(categories[i].name.toString().toLowerCase()),
+          estoreid: new ObjectId(estoreid),
+        });
+        if (checkExist) {
+          await Category.findOneAndUpdate(
+            {
+              slug: slugify(categories[i].name.toString().toLowerCase()),
+              estoreid: new ObjectId(estoreid),
+            },
+            categories[i],
+            { new: true }
+          );
+        } else {
+          const category = new Category({
+            ...categories[i],
+            slug: slugify(categories[i].name.toString().toLowerCase()),
+            estoreid: new ObjectId(estoreid),
+          });
+          await category.save();
+        }
+      }
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    res.json({ err: "Importing categories failed. " + error.message });
   }
 };
 

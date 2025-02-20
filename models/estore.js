@@ -62,6 +62,10 @@ const estoreSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    brandChange: {
+      type: Number,
+      default: 0,
+    },
     productChange: {
       type: Number,
       default: 0,

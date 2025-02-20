@@ -12,7 +12,14 @@ exports.getBrand = async (req, res) => {
       _id: new ObjectId(braid),
       estoreid: new ObjectId(estoreid),
     });
-    res.json(brand);
+    const countProduct = await Product.countDocuments({
+      brand: new ObjectId(brand._id),
+      estoreid: new ObjectId(estoreid),
+    }).exec();
+    res.json({
+      ...brand._doc,
+      itemcount: countProduct,
+    });
   } catch (error) {
     res.json({ err: "Getting brand fails. " + error.message });
   }
@@ -25,32 +32,68 @@ exports.getBrands = async (req, res) => {
       estoreid: new ObjectId(estoreid),
     }).exec();
 
-    let updatedBrands = [];
-
-    for (let i = 0; i < brands.length; i++) {
-      const countProduct = await Product.find({
-        brand: new ObjectId(brands[i]._id),
-        estoreid: new ObjectId(estoreid),
-      }).exec();
-      updatedBrands.push({
-        ...brands[i]._doc,
-        itemcount: countProduct.length,
-      });
-    }
-
-    res.json(updatedBrands);
+    res.json(brands);
   } catch (error) {
     res.json({ err: "Fetching brands fails. " + error.message });
+  }
+};
+
+exports.checkImageUser = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  const publicid = req.params.publicid;
+
+  try {
+    let brand = await Brand.findOne({
+      images: {
+        $elemMatch: { public_id: publicid },
+      },
+      estoreid: { $ne: new ObjectId(estoreid) },
+    }).exec();
+
+    if (brand) {
+      res.json({ delete: false });
+    } else {
+      brand = await Brand.findOne({
+        images: {
+          $elemMatch: { public_id: publicid },
+        },
+        estoreid: new ObjectId(estoreid),
+      }).exec();
+
+      const theImage =
+        brand && brand.images
+          ? brand.images.filter((img) => img.public_id === publicid)
+          : [];
+
+      if (
+        theImage &&
+        theImage.length > 0 &&
+        theImage[0] &&
+        theImage[0].fromid
+      ) {
+        if (theImage[0].fromid === estoreid) {
+          res.json({ delete: true });
+        } else {
+          res.json({ delete: false });
+        }
+      } else {
+        res.json({ delete: true });
+      }
+    }
+  } catch (error) {
+    console.log(error.message);
+    res.status(400).send("Checking image user failed.");
   }
 };
 
 exports.addBrand = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const name = req.body.name;
+  const images = req.body.images;
   const slug = slugify(req.body.name.toString().toLowerCase());
 
   try {
-    const brand = new Brand({ name, slug, estoreid });
+    const brand = new Brand({ name, slug, images, estoreid });
     await brand.save();
     res.json(brand);
   } catch (error) {
@@ -91,6 +134,50 @@ exports.updateBrand = async (req, res) => {
     res.json({ ...brand._doc, itemcount: countProduct.length });
   } catch (error) {
     res.json({ err: "Updating brand fails. " + error.message });
+  }
+};
+
+exports.importBrands = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  try {
+    const brands = req.body.brands;
+    for (let i = 0; i < brands.length; i++) {
+      if (brands[i]._id && ObjectId.isValid(brands[i]._id)) {
+        await Brand.findOneAndUpdate(
+          {
+            _id: new ObjectId(brands[i]._id),
+            estoreid: new ObjectId(estoreid),
+          },
+          brands[i],
+          { new: true }
+        );
+      } else {
+        const checkExist = await Brand.findOne({
+          slug: slugify(brands[i].name.toString().toLowerCase()),
+          estoreid: new ObjectId(estoreid),
+        });
+        if (checkExist) {
+          await Brand.findOneAndUpdate(
+            {
+              slug: slugify(brands[i].name.toString().toLowerCase()),
+              estoreid: new ObjectId(estoreid),
+            },
+            brands[i],
+            { new: true }
+          );
+        } else {
+          const brand = new Brand({
+            ...brands[i],
+            slug: slugify(brands[i].name.toString().toLowerCase()),
+            estoreid: new ObjectId(estoreid),
+          });
+          await brand.save();
+        }
+      }
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    res.json({ err: "Importing brands failed. " + error.message });
   }
 };
 

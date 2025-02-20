@@ -6,6 +6,7 @@ const {
   checkImageUser,
   addCategory,
   updateCategory,
+  importCategories,
   removeCategory,
 } = require("../controllers/category");
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
@@ -24,6 +25,12 @@ router.put(
   authCheck,
   adminGratisCheck,
   updateCategory
+);
+router.put(
+  "/gratis/import-categories",
+  authCheck,
+  adminGratisCheck,
+  importCategories
 );
 router.delete(
   "/gratis/remove-category/:catid",

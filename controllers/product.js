@@ -570,12 +570,23 @@ exports.receiveProducts = async (req, res) => {
   try {
     for (let i = 0; i < products.length; i++) {
       if (products[i].supplierPrice === products[i].newSupplierPrice) {
+        const checkProduct = await Product.findOne({
+          _id: new ObjectId(products[i]._id),
+          estoreid: new ObjectId(estoreid),
+        })
+          .select("quantity")
+          .exec();
         await Product.findOneAndUpdate(
           {
             _id: new ObjectId(products[i]._id),
             estoreid: new ObjectId(estoreid),
           },
-          { $inc: { quantity: products[i].newQuantity } },
+          {
+            quantity: checkProduct.quantity
+              ? parseFloat(checkProduct.quantity) +
+                parseFloat(products[i].newQuantity)
+              : parseFloat(products[i].newQuantity),
+          },
           { new: true }
         );
       } else {
@@ -673,7 +684,7 @@ exports.importProducts = async (req, res) => {
     }
     res.json({ ok: true });
   } catch (error) {
-    res.json({ err: "Receiving product failed. " + error.message });
+    res.json({ err: "Importing product failed. " + error.message });
   }
 };
 
