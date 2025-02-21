@@ -17,6 +17,7 @@ const categorySchema = new mongoose.Schema(
       lowercase: true,
       index: true,
     },
+    cat_code: ObjectId,
     images: {
       type: Array,
     },

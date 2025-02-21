@@ -17,6 +17,7 @@ const brandSchema = new mongoose.Schema(
       lowercase: true,
       index: true,
     },
+    bra_code: ObjectId,
     images: {
       type: Array,
     },

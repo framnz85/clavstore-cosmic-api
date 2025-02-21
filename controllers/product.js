@@ -4,6 +4,7 @@ const slugify = require("slugify");
 const Product = require("../models/product");
 const User = require("../models/user");
 const Category = require("../models/category");
+const Brand = require("../models/brand");
 const Order = require("../models/order");
 const Rating = require("../models/rating");
 
@@ -351,6 +352,7 @@ exports.searchProduct = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const text = req.body.text;
   const catSlug = req.body.catSlug;
+  const type = req.body.type;
   const price = req.body.price;
   const page = req.body.page;
   let querySearch = {};
@@ -361,17 +363,33 @@ exports.searchProduct = async (req, res) => {
     querySearch = { ...querySearch, $text: { $search: text } };
   }
 
-  if (catSlug && catSlug !== "all") {
-    const category = await Category.findOne({
-      slug: catSlug,
-      estoreid: new ObjectId(estoreid),
-    });
-    if (category) {
-      querySearch = { ...querySearch, category: new ObjectId(category._id) };
-      noResultSearch = {
-        ...noResultSearch,
-        category: new ObjectId(category._id),
-      };
+  if (type === "brand") {
+    if (catSlug && catSlug !== "all") {
+      const brand = await Brand.findOne({
+        slug: catSlug,
+        estoreid: new ObjectId(estoreid),
+      });
+      if (brand) {
+        querySearch = { ...querySearch, brand: new ObjectId(brand._id) };
+        noResultSearch = {
+          ...noResultSearch,
+          brand: new ObjectId(brand._id),
+        };
+      }
+    }
+  } else {
+    if (catSlug && catSlug !== "all") {
+      const category = await Category.findOne({
+        slug: catSlug,
+        estoreid: new ObjectId(estoreid),
+      });
+      if (category) {
+        querySearch = { ...querySearch, category: new ObjectId(category._id) };
+        noResultSearch = {
+          ...noResultSearch,
+          category: new ObjectId(category._id),
+        };
+      }
     }
   }
 
@@ -612,19 +630,39 @@ exports.importProducts = async (req, res) => {
     const products = req.body.products;
     for (let i = 0; i < products.length; i++) {
       if (products[i].category && ObjectId.isValid(products[i].category)) {
-        products[i] = {
-          ...products[i],
-          category: new ObjectId(products[i].category),
-        };
+        const checkCategory = await Category.findOne({
+          cat_code: new ObjectId(products[i].category),
+        }).exec();
+        if (checkCategory) {
+          products[i] = {
+            ...products[i],
+            category: new ObjectId(checkCategory._id),
+          };
+        } else {
+          products[i] = {
+            ...products[i],
+            category: new ObjectId(products[i].category),
+          };
+        }
       } else {
         delete products[i].category;
       }
 
       if (products[i].brand && ObjectId.isValid(products[i].brand)) {
-        products[i] = {
-          ...products[i],
-          brand: new ObjectId(products[i].brand),
-        };
+        const checkBrand = await Brand.findOne({
+          bra_code: new ObjectId(products[i].brand),
+        }).exec();
+        if (checkBrand) {
+          products[i] = {
+            ...products[i],
+            brand: new ObjectId(checkBrand._id),
+          };
+        } else {
+          products[i] = {
+            ...products[i],
+            brand: new ObjectId(products[i].brand),
+          };
+        }
       } else {
         delete products[i].brand;
       }

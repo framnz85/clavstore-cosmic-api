@@ -46,6 +46,10 @@ const estoreSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    showBrands: {
+      type: Boolean,
+      default: true,
+    },
     showItemsForYou: {
       type: Boolean,
       default: true,
