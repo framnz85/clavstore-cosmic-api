@@ -301,9 +301,9 @@ exports.getAdminItems = async (req, res) => {
               totalSold = totalSold + result[j].products[k].count;
             }
           }
-          newProdSold.push({ ...products[i], sold: totalSold });
+          newProdSold.push({ ...products[i]._doc, sold: totalSold });
         } else {
-          newProdSold.push({ ...products[i], sold: 0 });
+          newProdSold.push({ ...products[i]._doc, sold: 0 });
         }
       }
       products = [...newProdSold];

@@ -50,6 +50,10 @@ const estoreSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    showBrandsInMenu: {
+      type: Boolean,
+      default: true,
+    },
     showItemsForYou: {
       type: Boolean,
       default: true,

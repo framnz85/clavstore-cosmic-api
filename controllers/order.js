@@ -124,6 +124,7 @@ exports.adminOrders = async (req, res) => {
       searchQuery,
       status,
       orderedBy,
+      sales,
     } = req.body;
 
     const user = await User.findOne({ email }).exec();
@@ -146,6 +147,26 @@ exports.adminOrders = async (req, res) => {
       }
       if (orderedBy) {
         searchObj = { ...searchObj, orderedBy: new ObjectId(orderedBy) };
+      }
+      if (sales && sales.type && sales.type === "sales") {
+        const startDate = new Date(
+          new Date(sales.dateStart).setHours(
+            new Date(sales.dateStart).getHours() + 8
+          )
+        );
+        const endDate = new Date(
+          new Date(sales.endDate).setHours(
+            new Date(sales.endDate).getHours() + 8
+          )
+        );
+        startDate.setDate(startDate.getDate() - 1);
+        searchObj = {
+          ...searchObj,
+          createdAt: {
+            $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
+            $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
+          },
+        };
       }
       orders = await Order.find(searchObj)
         .skip((currentPage - 1) * pageSize)
@@ -170,6 +191,26 @@ exports.adminOrders = async (req, res) => {
       }
       if (orderedBy) {
         searchObj = { ...searchObj, orderedBy: new ObjectId(orderedBy) };
+      }
+      if (sales && sales.type && sales.type === "sales") {
+        const startDate = new Date(
+          new Date(sales.dateStart).setHours(
+            new Date(sales.dateStart).getHours() + 8
+          )
+        );
+        const endDate = new Date(
+          new Date(sales.endDate).setHours(
+            new Date(sales.endDate).getHours() + 8
+          )
+        );
+        startDate.setDate(startDate.getDate() - 1);
+        searchObj = {
+          ...searchObj,
+          createdAt: {
+            $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
+            $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
+          },
+        };
       }
       orders = await Order.find(searchObj)
         .skip((currentPage - 1) * pageSize)
