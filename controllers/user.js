@@ -211,18 +211,29 @@ exports.getNotification = async (req, res) => {
 
 exports.getAllUsers = async (req, res) => {
   const estoreid = req.headers.estoreid;
+  const email = req.user.email;
 
   try {
     const { sortkey, sort, currentPage, pageSize, searchQuery } = req.body;
+
+    const checkUser = await User.findOne({
+      email,
+      estoreid: new ObjectId(estoreid),
+    });
 
     let searchObj = searchQuery
       ? { $text: { $search: searchQuery }, estoreid: new ObjectId(estoreid) }
       : { estoreid: new ObjectId(estoreid) };
 
-    const admins = await User.find({
-      estoreid: new ObjectId(estoreid),
-      role: "admin",
-    }).exec();
+    const admins =
+      checkUser && checkUser.superAdmin
+        ? await User.find({
+            role: "admin",
+          }).exec()
+        : await User.find({
+            estoreid: new ObjectId(estoreid),
+            role: "admin",
+          }).exec();
     const moderators = await User.find({
       estoreid: new ObjectId(estoreid),
       role: "moderator",
@@ -428,16 +439,26 @@ exports.updateUser = async (req, res) => {
 
 exports.updateCustomer = async (req, res) => {
   const estoreid = req.headers.estoreid;
+  const email = req.user.email;
   const userid = req.params.userid;
-
   try {
-    await User.findOneAndUpdate(
-      { _id: new ObjectId(userid), estoreid: new ObjectId(estoreid) },
-      req.body,
-      {
+    const checkUser = await User.findOne({
+      email,
+      estoreid: new ObjectId(estoreid),
+    });
+    if (checkUser && checkUser.superAdmin) {
+      await User.findOneAndUpdate({ _id: new ObjectId(userid) }, req.body, {
         new: true,
-      }
-    );
+      });
+    } else {
+      await User.findOneAndUpdate(
+        { _id: new ObjectId(userid), estoreid: new ObjectId(estoreid) },
+        req.body,
+        {
+          new: true,
+        }
+      );
+    }
 
     res.json({ ok: true });
   } catch (error) {
