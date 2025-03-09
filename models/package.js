@@ -8,7 +8,7 @@ const packageSchema = new mongoose.Schema(
     images: Array,
     defaultPackage: {
       type: String,
-      enum: ["basic", "dedicated"],
+      enum: ["basic", "dedicated", "single"],
       default: "basic",
     },
     regularPrice: Number,
