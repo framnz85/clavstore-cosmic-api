@@ -574,6 +574,18 @@ exports.forgotPassword = async (req, res) => {
         },
         { new: true }
       );
+      if (!user) {
+        user = await User.findOneAndUpdate(
+          {
+            email,
+            role: "admin",
+          },
+          {
+            password: md5(newpassword),
+          },
+          { new: true }
+        );
+      }
     } else {
       user = await User.findOneAndUpdate(
         {
@@ -586,7 +598,7 @@ exports.forgotPassword = async (req, res) => {
         { new: true }
       );
     }
-    if (user._id) {
+    if (user) {
       res.json(user);
     } else {
       res.json({ err: "Change user password fails. No user was found" });
