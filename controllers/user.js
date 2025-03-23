@@ -225,9 +225,24 @@ exports.getAllUsers = async (req, res) => {
       ? { $text: { $search: searchQuery }, estoreid: new ObjectId(estoreid) }
       : { estoreid: new ObjectId(estoreid) };
 
+    const estoreids = await Estore.aggregate([
+      {
+        $match: {
+          status: "active",
+          $or: [{ upgradeType: "2" }, { upStatus2: "Active" }],
+        },
+      },
+      {
+        $group: {
+          _id: "$_id",
+        },
+      },
+    ]);
+
     const admins =
       checkUser && checkUser.superAdmin
         ? await User.find({
+            estoreid: { $in: estoreids.map((data) => data._id) },
             role: "admin",
           }).exec()
         : await User.find({

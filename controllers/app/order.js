@@ -22,7 +22,6 @@ exports.getPosOrders = async (req, res) => {
     if (user.role === "cashier") {
       orders = await Order.find({
         estoreid: new ObjectId(estoreid),
-        orderType: "pos",
         createdBy: user._id,
       })
         .skip((page - 1) * limit)
@@ -31,7 +30,6 @@ exports.getPosOrders = async (req, res) => {
     } else {
       orders = await Order.find({
         estoreid: new ObjectId(estoreid),
-        orderType: "pos",
       }).exec();
     }
 

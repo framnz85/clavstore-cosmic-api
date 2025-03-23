@@ -73,6 +73,7 @@ exports.getUserDetails = async (req, res) => {
       email,
       estoreid: new ObjectId(estoreid),
       resellid: new ObjectId(resellid),
+      role: { $in: ["admin", "moderator", "cashier"] },
     })
       .populate({
         path: "estoreid",
@@ -88,6 +89,7 @@ exports.getUserDetails = async (req, res) => {
       const userWithReseller = await User.findOne({
         email,
         resellid: new ObjectId(resellid),
+        role: { $in: ["admin", "moderator", "cashier"] },
       })
         .populate({
           path: "estoreid",
@@ -103,6 +105,7 @@ exports.getUserDetails = async (req, res) => {
         const userWithEmail = await User.findOne({
           email,
           estoreid: new ObjectId(estoreid),
+          role: { $in: ["admin", "moderator", "cashier"] },
         })
           .populate({
             path: "estoreid",
@@ -116,7 +119,7 @@ exports.getUserDetails = async (req, res) => {
           res.json(userWithEmail);
         } else {
           res.json({
-            err: "Cannot fetch the user details or the user doesn't exist in this store.",
+            err: "Make sure user exist in this store and its role should be admin, moderator, or cashier.",
           });
         }
       }
