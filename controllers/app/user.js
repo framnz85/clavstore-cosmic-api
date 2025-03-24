@@ -8,13 +8,13 @@ const Estore = require("../../models/estore");
 exports.getUsers = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const page = req.body.page;
-  const limit = req.body.page;
+  const limit = req.body.limit;
 
   try {
     const users = await User.find({
       estoreid: new ObjectId(estoreid),
     })
-      .skip((page - 1) * limit)
+      .skip(page * limit)
       .limit(limit)
       .exec();
 
@@ -65,13 +65,11 @@ exports.loginUser = async (req, res) => {
 
 exports.getUserDetails = async (req, res) => {
   const email = req.user.email;
-  const estoreid = req.headers.estoreid;
   const resellid = req.params.resellid;
 
   try {
-    const user = await User.findOne({
+    const users = await User.find({
       email,
-      estoreid: new ObjectId(estoreid),
       resellid: new ObjectId(resellid),
       role: { $in: ["admin", "moderator", "cashier"] },
     })
@@ -83,46 +81,8 @@ exports.getUserDetails = async (req, res) => {
       })
       .select("-password -showPass -verifyCode")
       .exec();
-    if (user) {
-      res.json(user);
-    } else {
-      const userWithReseller = await User.findOne({
-        email,
-        resellid: new ObjectId(resellid),
-        role: { $in: ["admin", "moderator", "cashier"] },
-      })
-        .populate({
-          path: "estoreid",
-          populate: {
-            path: "country",
-          },
-        })
-        .select("-password -showPass -verifyCode")
-        .exec();
-      if (userWithReseller) {
-        res.json(userWithReseller);
-      } else {
-        const userWithEmail = await User.findOne({
-          email,
-          estoreid: new ObjectId(estoreid),
-          role: { $in: ["admin", "moderator", "cashier"] },
-        })
-          .populate({
-            path: "estoreid",
-            populate: {
-              path: "country",
-            },
-          })
-          .select("-password -showPass -verifyCode")
-          .exec();
-        if (userWithEmail) {
-          res.json(userWithEmail);
-        } else {
-          res.json({
-            err: "Make sure user exist in this store and its role should be admin, moderator, or cashier.",
-          });
-        }
-      }
+    if (users) {
+      res.json(users);
     }
   } catch (error) {
     res.json({ err: "Fetching user information fails. " + error.message });

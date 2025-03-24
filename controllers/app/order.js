@@ -13,7 +13,7 @@ const {
 exports.getPosOrders = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const page = req.body.page;
-  const limit = req.body.page;
+  const limit = req.body.limit;
   const email = req.user.email;
   let orders = [];
 
@@ -24,7 +24,7 @@ exports.getPosOrders = async (req, res) => {
         estoreid: new ObjectId(estoreid),
         createdBy: user._id,
       })
-        .skip((page - 1) * limit)
+        .skip(page * limit)
         .limit(limit)
         .exec();
     } else {
@@ -386,14 +386,27 @@ exports.updateOrder = async (req, res) => {
 
   const orderid = req.body.orderid;
   const orderStatus = req.body.orderStatus;
+  const remarks = req.body.remarks;
 
   try {
+    const order = await Order.findOne({
+      _id: new ObjectId(orderid),
+      estoreid: new ObjectId(estoreid),
+    }).exec();
+    const statusHistory = order.statusHistory;
+
+    statusHistory.push({
+      status: orderStatus,
+      remarks,
+      date: new Date(),
+    });
+
     const updatedOrder = await Order.findOneAndUpdate(
       {
         _id: new ObjectId(orderid),
         estoreid: new ObjectId(estoreid),
       },
-      { orderStatus },
+      { orderStatus, statusHistory },
       { new: true }
     );
 
