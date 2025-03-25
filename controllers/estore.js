@@ -165,15 +165,24 @@ exports.getPackages = async (req, res) => {
 };
 
 exports.getDedicatedEstores = async (req, res) => {
+  const main = req.headers.main;
+  let estores = [];
+
   try {
-    let estores = await Estore.find({
-      status: "active",
-      $or: [
-        { upgradeType: "2" },
-        { upStatus2: "Active" },
-        { showInApp: true, showInList: true },
-      ],
-    }).exec();
+    if (main) {
+      estores = await Estore.find({
+        $or: [{ upgradeType: "2" }, { upStatus2: "Active" }],
+      }).exec();
+    } else {
+      estores = await Estore.find({
+        status: "active",
+        $or: [
+          { upgradeType: "2" },
+          { upStatus2: "Active" },
+          { showInApp: true, showInList: true },
+        ],
+      }).exec();
+    }
 
     estores = await populateEstore(estores);
 
