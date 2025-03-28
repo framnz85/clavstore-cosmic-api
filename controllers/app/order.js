@@ -296,10 +296,15 @@ exports.saveOrder = async (req, res) => {
 exports.sendOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
+  const mongoid = req.body.mongoid;
+  const orderCode = req.body.orderCode;
 
+  const orderType = req.body.orderType;
   const orderStatus = req.body.orderStatus;
   const cartTotal = req.body.cartTotal;
+  const delfee = req.body.delfee;
   const discount = req.body.discount;
+  const servefee = req.body.servefee;
   const addDiscount = req.body.addDiscount;
   const cash = req.body.cash;
   const products = req.body.products;
@@ -313,6 +318,8 @@ exports.sendOrder = async (req, res) => {
   try {
     let user = await User.findOne({ email }).exec();
     let checkUser = {};
+    let checkOrder = {};
+    let order = {};
 
     if (customerName) {
       if (customerPhone) {
@@ -347,28 +354,63 @@ exports.sendOrder = async (req, res) => {
       }
     }
 
-    const newOrder = new Order({
-      orderType: "pos",
-      orderStatus,
-      cartTotal,
-      discount,
-      addDiscount,
-      cash,
-      createdBy: user._id,
-      orderedBy: checkUser && checkUser._id ? checkUser._id : user._id,
-      orderedName: customerName || user.name,
-      estoreid: new ObjectId(estoreid),
-      orderNotes,
-      products,
-    });
+    if (mongoid && ObjectId.isValid(mongoid)) {
+      checkOrder = await Order.findOne({
+        _id: new ObjectId(mongoid),
+        orderCode,
+      }).exec();
+    }
 
-    const order = await newOrder.save();
+    if (checkOrder && checkOrder._id) {
+      order = await Order.findOneAndUpdate(
+        {
+          _id: new ObjectId(mongoid),
+          orderCode,
+        },
+        {
+          orderType,
+          orderStatus,
+          cartTotal,
+          delfee,
+          discount,
+          servefee,
+          addDiscount,
+          cash,
+          createdBy: user._id,
+          orderedBy: checkUser && checkUser._id ? checkUser._id : user._id,
+          orderedName: customerName || user.name,
+          estoreid: new ObjectId(estoreid),
+          orderNotes,
+          products,
+        },
+        { new: true }
+      );
+    } else {
+      const newOrder = new Order({
+        orderType,
+        orderStatus,
+        cartTotal,
+        delfee,
+        discount,
+        servefee,
+        addDiscount,
+        cash,
+        createdBy: user._id,
+        orderedBy: checkUser && checkUser._id ? checkUser._id : user._id,
+        orderedName: customerName || user.name,
+        estoreid: new ObjectId(estoreid),
+        orderNotes,
+        products,
+      });
 
-    if (order) {
+      order = await newOrder.save();
+
       await Order.findByIdAndUpdate(order._id, {
         orderCode: order._id.toString().slice(-12),
       }).exec();
+    }
 
+    if (order) {
       await Estore.findByIdAndUpdate(estoreid, {
         orderChange: new Date().valueOf(),
         productChange: new Date().valueOf(),
