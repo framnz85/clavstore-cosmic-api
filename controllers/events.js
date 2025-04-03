@@ -9,28 +9,36 @@ const hashData = (data) => {
 };
 
 exports.sendPurchase = async (req, res) => {
-  const { eventID, product, userData } = req.body;
+  const { eventID, userData } = req.body;
+
+  const event_time = Math.floor(Date.now() / 1000);
 
   const data = {
     data: [
       {
         event_name: "Purchase",
-        event_time: Math.floor(Date.now() / 1000),
-        event_id: eventID, // Deduplication ID
-        event_source_url: "http://francisclavano.clavstore.com/cosmic-thankyou",
+        event_time,
         action_source: "website",
+        event_id: eventID,
         user_data: {
+          em: hashData(userData.email),
+          ph: hashData(userData.phone),
           client_user_agent: userData.userAgent,
           client_ip_address: userData.ip,
-          em: hashData(userData.email), // Hashed email
-          ph: hashData(userData.phone), // Hashed phone
+        },
+        attribution_data: {
+          attribution_share: "0.3",
         },
         custom_data: {
           content_name: "Cosmic Clavstore",
           content_ids: "123456789",
           content_type: "product",
-          value: "480",
           currency: "PHP",
+          value: 480,
+        },
+        original_event_data: {
+          event_name: "Purchase",
+          event_time,
         },
       },
     ],
