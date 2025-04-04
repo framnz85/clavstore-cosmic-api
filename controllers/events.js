@@ -23,7 +23,11 @@ exports.sendPurchase = async (req, res) => {
         user_data: {
           em: hashData(userData.email),
           ph: hashData(userData.phone),
-          client_user_agent: userData.userAgent,
+          fn: hashData(userData.firstName),
+          ln: hashData(userData.lastName),
+          zp: hashData(userData.zipcode),
+          country: hashData(userData.country),
+          ct: hashData(userData.city),
           client_ip_address: userData.ip,
         },
         attribution_data: {
