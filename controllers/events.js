@@ -41,8 +41,8 @@ exports.sendPurchase = async (req, res) => {
           content_name: "Cosmic Clavstore",
           content_ids: "123456789",
           content_type: "product",
-          currency: "PHP",
-          value: 480,
+          currency: userData.currency,
+          value: userData.value,
         },
         original_event_data: {
           event_name: "Purchase",
@@ -60,6 +60,7 @@ exports.sendPurchase = async (req, res) => {
     );
     res.status(200).send({ success: true, response: response.data });
   } catch (error) {
+    console.log(error);
     res.status(500).send({ success: false, error: error.message });
   }
 };
