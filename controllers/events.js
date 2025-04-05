@@ -28,6 +28,10 @@ exports.sendPurchase = async (req, res) => {
           zp: hashData(userData.zipcode),
           country: hashData(userData.country),
           ct: hashData(userData.city),
+          client_user_agent: userData.userAgent,
+          fbc: userData.fbc,
+          fbp: userData.fbp,
+          external_id: userData.externalID,
           client_ip_address: userData.ip,
         },
         attribution_data: {
