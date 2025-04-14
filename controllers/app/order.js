@@ -4,6 +4,7 @@ const Order = require("../../models/order");
 const User = require("../../models/user");
 const Estore = require("../../models/estore");
 const Product = require("../../models/product");
+const Cart = require("../../models/cart");
 const {
   createRaffle,
   checkOrderedProd,
@@ -30,7 +31,10 @@ exports.getPosOrders = async (req, res) => {
     } else {
       orders = await Order.find({
         estoreid: new ObjectId(estoreid),
-      }).exec();
+      })
+        .skip(page * limit)
+        .limit(limit)
+        .exec();
     }
 
     res.json(orders);
@@ -293,6 +297,45 @@ exports.saveOrder = async (req, res) => {
   }
 };
 
+exports.submitEditOrder = async (req, res) => {
+  const orderid = req.params.orderid;
+  const cartTotal = req.body.cartTotal;
+  const products = req.body.products;
+  const estoreid = req.headers.estoreid;
+  const email = req.user.email;
+
+  try {
+    const user = await User.findOne({ email }).exec();
+    if (user) {
+      await Order.findOneAndUpdate(
+        {
+          _id: new ObjectId(orderid),
+          estoreid: Object(estoreid),
+        },
+        {
+          products,
+          cartTotal,
+        },
+        { new: true }
+      );
+
+      await Estore.findOneAndUpdate(
+        {
+          _id: new ObjectId(estoreid),
+        },
+        { orderChange: new Date().valueOf() },
+        { new: true }
+      );
+
+      res.json({ ok: true });
+    } else {
+      res.json({ err: "Cannot fetch the cart details." });
+    }
+  } catch (error) {
+    res.json({ err: "Saving edit order fails. " + error.message });
+  }
+};
+
 exports.sendOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
@@ -463,5 +506,36 @@ exports.updateOrder = async (req, res) => {
     res.json(updatedOrder);
   } catch (error) {
     res.json({ err: "Updating order status fails. " + error.message });
+  }
+};
+
+exports.deleteOrder = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  const email = req.user.email;
+  const orderid = req.params.orderid;
+
+  try {
+    const user = await User.findOne({ email }).exec();
+    if (user) {
+      const order = await Order.findOneAndDelete({
+        _id: new ObjectId(orderid),
+        orderedBy: user._id,
+        estoreid: Object(estoreid),
+      });
+
+      await Estore.findOneAndUpdate(
+        {
+          _id: new ObjectId(estoreid),
+        },
+        { orderChange: new Date().valueOf() },
+        { new: true }
+      );
+
+      res.json(order);
+    } else {
+      res.json({ err: "Cannot delete the order." });
+    }
+  } catch (error) {
+    res.json({ err: "Deleting order fails. " + error.message });
   }
 };

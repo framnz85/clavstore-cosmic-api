@@ -7,6 +7,11 @@ const {
   addBilling,
   updateBilling,
 } = require("../controllers/billing");
+const {
+  latestSuperBill,
+  getHostingSuperBill,
+  getSuperBillings,
+} = require("../controllers/superBilling");
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
 
 router.get(
@@ -16,12 +21,30 @@ router.get(
   latestBill
 );
 router.get(
+  "/gratis/latest-super-bill/:packid",
+  authCheck,
+  adminGratisCheck,
+  latestSuperBill
+);
+router.get(
   "/gratis/get-hosting-billing",
   authCheck,
   adminGratisCheck,
   getHostingBill
 );
+router.get(
+  "/gratis/get-hosting-super-billing",
+  authCheck,
+  adminGratisCheck,
+  getHostingSuperBill
+);
 router.get("/gratis/get-billings", authCheck, adminGratisCheck, getBillings);
+router.get(
+  "/gratis/get-super-billings",
+  authCheck,
+  adminGratisCheck,
+  getSuperBillings
+);
 router.post("/gratis/add-billing", authCheck, adminGratisCheck, addBilling);
 router.put(
   "/gratis/update-billing",

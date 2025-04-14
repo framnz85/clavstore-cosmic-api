@@ -7,9 +7,11 @@ const {
   updatePayment,
   removePayment,
 } = require("../controllers/payment");
+const { getSuperPayment } = require("../controllers/superBilling");
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
 
 router.get("/gratis/get-payment/:payid", authCheck, getPayment);
+router.get("/gratis/get-super-payment/:payid", authCheck, getSuperPayment);
 router.get("/gratis/get-payments", authCheck, getPayments);
 router.post("/gratis/add-payment", authCheck, adminGratisCheck, addPayment);
 router.put(
