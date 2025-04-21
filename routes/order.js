@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   userOrder,
+  userAppOrder,
   userOrders,
   adminOrder,
   adminOrders,
@@ -21,6 +22,7 @@ const {
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
 
 router.get("/gratis/user-order/:orderid", authCheck, userOrder);
+router.get("/gratis/user-order-app/:orderid", userAppOrder);
 router.get(
   "/gratis/admin-order/:orderid",
   authCheck,

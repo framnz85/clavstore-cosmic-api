@@ -42,6 +42,29 @@ exports.userOrder = async (req, res) => {
   }
 };
 
+exports.userAppOrder = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  const orderid = req.params.orderid;
+
+  try {
+    const order = await Order.findOne({
+      _id: new ObjectId(orderid),
+      estoreid: Object(estoreid),
+    })
+      .populate("products.product")
+      .populate("orderedBy")
+      .populate("paymentOption")
+      .exec();
+    if (order) {
+      res.json(order);
+    } else {
+      res.json({ err: "Sorry, there is no data on this order." });
+    }
+  } catch (error) {
+    res.json({ err: "Fetching an order failed. " + error.message });
+  }
+};
+
 exports.adminOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const orderid = req.params.orderid;
