@@ -1,5 +1,6 @@
 const ObjectId = require("mongoose").Types.ObjectId;
 const md5 = require("md5");
+const jwt = require("jsonwebtoken");
 
 const Estore = require("../models/estore");
 const User = require("../models/user");
@@ -55,8 +56,12 @@ exports.userAppOrder = async (req, res) => {
       .populate("orderedBy")
       .populate("paymentOption")
       .exec();
+    const token = jwt.sign(
+      { email: order.orderedBy.email },
+      process.env.JWT_PRIVATE_KEY
+    );
     if (order) {
-      res.json(order);
+      res.json({ order, token });
     } else {
       res.json({ err: "Sorry, there is no data on this order." });
     }
