@@ -805,6 +805,36 @@ exports.updateOrderStatus = async (req, res) => {
   }
 };
 
+exports.updatePaidOrder = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  const email = req.user.email;
+  const { orderid, orderStatus, statusHistory } = req.body;
+
+  try {
+    const user = await User.findOne({ email }).exec();
+    if (user) {
+      const order = await Order.findOneAndUpdate(
+        {
+          _id: new ObjectId(orderid),
+          estoreid: Object(estoreid),
+        },
+        {
+          orderStatus,
+          statusHistory,
+        },
+        { new: true }
+      );
+      if (order) {
+        res.json(order);
+      } else {
+        res.json({ err: "Order does not exist." });
+      }
+    }
+  } catch (error) {
+    res.json({ err: "Updating paid order status fails. " + error.message });
+  }
+};
+
 exports.updateCustomDetails = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
@@ -974,6 +1004,7 @@ exports.submitEditOrder = async (req, res) => {
   const delfee = req.body.delfee;
   const discount = req.body.discount;
   const servefee = req.body.servefee;
+  const paymentOption = req.body.paymentOption;
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
 
@@ -1000,6 +1031,7 @@ exports.submitEditOrder = async (req, res) => {
             delfee,
             discount,
             servefee,
+            paymentOption: new ObjectId(paymentOption),
           },
           { new: true }
         );

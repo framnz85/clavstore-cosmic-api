@@ -1,6 +1,8 @@
 const ObjectId = require("mongoose").Types.ObjectId;
+const { Xendit } = require("xendit-node");
 
 const Payment = require("../models/payment");
+const Order = require("../models/order");
 
 exports.getPayment = async (req, res) => {
   const payid = req.params.payid;
@@ -22,6 +24,48 @@ exports.getPayments = async (req, res) => {
     const payments = await Payment.find({ estoreid: new ObjectId(estoreid) });
     res.json(payments);
   } catch (error) {
+    res.json({ err: "Getting payments fails. " + error.message });
+  }
+};
+
+exports.payXendit = async (req, res) => {
+  const orderCode = req.body.orderCode;
+  const grandTotal = req.body.grandTotal;
+  const successUrl = req.body.successUrl;
+
+  try {
+    const order = await Order.findOne({ orderCode })
+      .populate("_id paymentOption")
+      .select("paymentOption")
+      .exec();
+    const { paymentOption = {} } = order;
+
+    const xendit = new Xendit({ secretKey: paymentOption.accNumber });
+    const { PaymentRequest } = xendit;
+
+    const data = {
+      referenceId: `order-${orderCode}`,
+      currency: "PHP",
+      amount: grandTotal.toFixed(2),
+      country: "PH",
+      paymentMethod: {
+        type: "EWALLET",
+        reusability: "ONE_TIME_USE",
+        ewallet: {
+          channelCode: "SHOPEEPAY",
+          channelProperties: {
+            successReturnUrl: successUrl + "/" + order._id + "?forprocess=1",
+          },
+        },
+      },
+    };
+
+    const response = await PaymentRequest.createPaymentRequest({
+      data,
+    });
+    res.json(response.actions[0].url);
+  } catch (error) {
+    console.log(error.message);
     res.json({ err: "Getting payments fails. " + error.message });
   }
 };
