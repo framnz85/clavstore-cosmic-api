@@ -54,13 +54,55 @@ exports.sendPurchase = async (req, res) => {
 
   try {
     const response = await axios.post(
-      `https://graph.facebook.com/v17.0/${pixelId}/events`,
+      `https://graph.facebook.com/v18.0/${pixelId}/events`,
       data,
       { params: { access_token: accessToken } }
     );
     res.status(200).send({ success: true, response: response.data });
   } catch (error) {
-    console.log(error);
+    res.status(500).send({ success: false, error: error.message });
+  }
+};
+
+exports.sendAnyEvent = async (req, res) => {
+  const { event_id, event_name, event_source_url, user_data } = req.body;
+
+  const event_time = Math.floor(Date.now() / 1000);
+
+  const data = {
+    data: [
+      {
+        event_name,
+        event_time,
+        event_source_url,
+        action_source: "website",
+        event_id,
+        user_data: {
+          em: hashData(user_data.email),
+          ph: hashData(user_data.phone),
+          fn: hashData(user_data.firstName),
+          ln: hashData(user_data.lastName),
+          zp: hashData(user_data.zipcode),
+          country: hashData(user_data.country),
+          ct: hashData(user_data.city),
+          client_user_agent: user_data.userAgent,
+          fbc: user_data.fbc,
+          fbp: user_data.fbp,
+          external_id: user_data.externalID,
+          client_ip_address: user_data.ip,
+        },
+      },
+    ],
+  };
+
+  try {
+    const response = await axios.post(
+      `https://graph.facebook.com/v18.0/${pixelId}/events`,
+      data,
+      { params: { access_token: accessToken } }
+    );
+    res.status(200).send({ success: true, response: response.data });
+  } catch (error) {
     res.status(500).send({ success: false, error: error.message });
   }
 };
