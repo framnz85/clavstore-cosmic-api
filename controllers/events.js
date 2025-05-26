@@ -65,7 +65,8 @@ exports.sendPurchase = async (req, res) => {
 };
 
 exports.sendAnyEvent = async (req, res) => {
-  const { event_id, event_name, event_source_url, user_data } = req.body;
+  const { event_id, event_name, event_source_url, user_data, ...rest } =
+    req.body;
 
   const event_time = Math.floor(Date.now() / 1000);
 
@@ -91,6 +92,7 @@ exports.sendAnyEvent = async (req, res) => {
           external_id: user_data.externalID,
           client_ip_address: user_data.ip,
         },
+        ...rest,
       },
     ],
   };
