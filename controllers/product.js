@@ -632,6 +632,7 @@ exports.importProducts = async (req, res) => {
       if (products[i].category && ObjectId.isValid(products[i].category)) {
         const checkCategory = await Category.findOne({
           cat_code: new ObjectId(products[i].category),
+          estoreid: new ObjectId(estoreid),
         }).exec();
         if (checkCategory) {
           products[i] = {
@@ -651,6 +652,7 @@ exports.importProducts = async (req, res) => {
       if (products[i].brand && ObjectId.isValid(products[i].brand)) {
         const checkBrand = await Brand.findOne({
           bra_code: new ObjectId(products[i].brand),
+          estoreid: new ObjectId(estoreid),
         }).exec();
         if (checkBrand) {
           products[i] = {
