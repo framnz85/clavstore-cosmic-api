@@ -82,6 +82,7 @@ const userSchema = new mongoose.Schema(
     deleteAccount: { request: Boolean, reasons: Array },
     wishlist: [{ type: ObjectId, ref: "Product" }],
     wholesale: { type: Boolean, default: true },
+    allowServerBusy: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

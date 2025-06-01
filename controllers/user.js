@@ -5,6 +5,8 @@ const SibApiV3Sdk = require("sib-api-v3-sdk");
 
 const User = require("../models/user");
 const Estore = require("../models/estore");
+const Product = require("../models/product");
+const Order = require("../models/order");
 const Raffle = require("../models/raffle");
 const Notification = require("../models/notification");
 const Salesnotify = require("../models/salesnotify");
@@ -15,6 +17,32 @@ const {
   populateAddress,
 } = require("./common");
 
+const getAccountCounts = async (estoreid) => {
+  try {
+    const estore = await Estore.findById(estoreid).select("createdAt");
+    if (!estore || !estore.createdAt) return null;
+    const createdDate = new Date(estore.createdAt);
+    const now = new Date();
+    const diffTime = now - createdDate;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    const [productCount, orderCount, userCount] = await Promise.all([
+      Product.countDocuments({ estoreid: new ObjectId(estoreid) }),
+      Order.countDocuments({ estoreid: new ObjectId(estoreid) }),
+      User.countDocuments({ estoreid: new ObjectId(estoreid) }),
+    ]);
+
+    return {
+      products: productCount,
+      orders: orderCount,
+      users: userCount,
+      estore: diffDays,
+    };
+  } catch (error) {
+    return {};
+  }
+};
+
 exports.getUserDetails = async (req, res) => {
   const email = req.user.email;
   const estoreid = req.headers.estoreid;
@@ -24,6 +52,7 @@ exports.getUserDetails = async (req, res) => {
   let addiv3 = {};
 
   try {
+    const accountCounts = await getAccountCounts(estoreid);
     const user = await User.findOne({
       email,
       estoreid: new ObjectId(estoreid),
@@ -47,9 +76,10 @@ exports.getUserDetails = async (req, res) => {
           ...user._doc,
           wishlist,
           address: { ...user.address, addiv3 },
+          accountCounts,
         });
       } else {
-        res.json({ ...user._doc, wishlist });
+        res.json({ ...user._doc, wishlist, accountCounts });
       }
     } else if (resellslug !== "branch") {
       let userWithReseller = await User.findOne({
@@ -102,9 +132,10 @@ exports.getUserDetails = async (req, res) => {
             ...userWithReseller._doc,
             wishlist,
             address: { ...userWithReseller.address, addiv3 },
+            accountCounts,
           });
         } else {
-          res.json({ ...userWithReseller._doc, wishlist });
+          res.json({ ...userWithReseller._doc, wishlist, accountCounts });
         }
       } else {
         const userWithEmail = await User.findOne({
@@ -136,9 +167,10 @@ exports.getUserDetails = async (req, res) => {
               ...userWithEmail._doc,
               wishlist,
               address: { ...userWithEmail.address, addiv3 },
+              accountCounts,
             });
           } else {
-            res.json({ ...userWithEmail._doc, wishlist });
+            res.json({ ...userWithEmail._doc, wishlist, accountCounts });
           }
         } else {
           res.json({
