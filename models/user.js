@@ -83,6 +83,11 @@ const userSchema = new mongoose.Schema(
     wishlist: [{ type: ObjectId, ref: "Product" }],
     wholesale: { type: Boolean, default: true },
     allowServerBusy: { type: Boolean, default: true },
+    server: {
+      type: String,
+      default: "server1",
+      enum: ["server1", "server2", "server3"],
+    },
   },
   { timestamps: true }
 );
