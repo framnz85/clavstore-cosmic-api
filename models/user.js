@@ -86,7 +86,7 @@ const userSchema = new mongoose.Schema(
     server: {
       type: String,
       default: "server1",
-      enum: ["server1", "server2", "server3"],
+      enum: ["server1", "server2", "server3", "server4", "server5"],
     },
   },
   { timestamps: true }
