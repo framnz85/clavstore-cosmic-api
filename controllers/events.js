@@ -71,9 +71,6 @@ exports.sendAnyEvent = async (req, res) => {
 
   const event_time = Math.floor(Date.now() / 1000);
 
-  console.log("fbc => ", user_data.fbc);
-  console.log("fbp => ", user_data.fbp);
-
   const data = {
     data: [
       {
