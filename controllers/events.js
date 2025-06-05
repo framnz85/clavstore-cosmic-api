@@ -1,8 +1,9 @@
 const crypto = require("crypto");
 const axios = require("axios");
 
+const graphApiVer = process.env.FB_GRAPH_API_VERSION || "v19.0";
+const pixelId = process.env.FB_PIXEL_ID;
 const accessToken = process.env.FB_ACCESS_TOKEN;
-const pixelId = "837512104717815";
 
 const hashData = (data) => {
   return crypto.createHash("sha256").update(data).digest("hex");
@@ -70,6 +71,8 @@ exports.sendAnyEvent = async (req, res) => {
 
   const event_time = Math.floor(Date.now() / 1000);
 
+  console.log(user_data.fbc, user_data.fbp);
+
   const data = {
     data: [
       {
@@ -99,7 +102,7 @@ exports.sendAnyEvent = async (req, res) => {
 
   try {
     const response = await axios.post(
-      `https://graph.facebook.com/v18.0/${pixelId}/events`,
+      `https://graph.facebook.com/${graphApiVer}/${pixelId}/events`,
       data,
       { params: { access_token: accessToken } }
     );
