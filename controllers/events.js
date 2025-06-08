@@ -55,7 +55,7 @@ exports.sendPurchase = async (req, res) => {
 
   try {
     const response = await axios.post(
-      `https://graph.facebook.com/v18.0/${pixelId}/events`,
+      `https://graph.facebook.com/${graphApiVer}/${pixelId}/events`,
       data,
       { params: { access_token: accessToken } }
     );
