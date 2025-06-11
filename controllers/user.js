@@ -697,7 +697,7 @@ exports.deleteAllRaffles = async (req, res) => {
   const estoreid = req.headers.estoreid;
 
   try {
-    const raffles = await Raffle.remove({
+    const raffles = await Raffle.deleteMany({
       estoreid: new ObjectId(estoreid),
     });
     res.json(raffles);

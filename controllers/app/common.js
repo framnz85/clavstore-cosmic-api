@@ -4,33 +4,37 @@ const Product = require("../../models/product");
 const Estore = require("../../models/estore");
 
 exports.createRaffle = async (estoreid, user, order) => {
-  const estore = await Estore.findOne({
-    _id: new ObjectId(estoreid),
-  }).exec();
+  try {
+    const estore = await Estore.findOne({
+      _id: new ObjectId(estoreid),
+    }).exec();
 
-  const date1 = new Date(estore.raffleDate);
-  const date2 = new Date();
-  const timeDifference = date1.getTime() - date2.getTime();
-  const daysDifference = Math.round(timeDifference / (1000 * 3600 * 24));
+    const date1 = new Date(estore.raffleDate);
+    const date2 = new Date();
+    const timeDifference = date1.getTime() - date2.getTime();
+    const daysDifference = Math.round(timeDifference / (1000 * 3600 * 24));
 
-  if (
-    user.role === "customer" &&
-    estore.raffleActivation &&
-    daysDifference > 0
-  ) {
-    const raffleInsert = {
-      estoreid,
-      userid: user._id,
-      orderid: order._id,
-      raffleDate: estore.raffleDate,
-    };
-    const raffleCount = Math.floor(
-      parseFloat(order.cartTotal) / parseFloat(estore.raffleEntryAmount)
-    );
+    if (
+      user.role === "customer" &&
+      estore.raffleActivation &&
+      daysDifference > 0
+    ) {
+      const raffleInsert = {
+        estoreid,
+        owner: user._id,
+        orderid: order._id,
+        raffleDate: estore.raffleDate,
+      };
+      const raffleCount = Math.floor(
+        parseFloat(order.cartTotal) / parseFloat(estore.raffleEntryAmount)
+      );
 
-    const raffleEntries = Array(raffleCount).fill(raffleInsert);
+      const raffleEntries = Array(raffleCount).fill(raffleInsert);
 
-    Raffle.insertMany(raffleEntries);
+      Raffle.insertMany(raffleEntries);
+    }
+  } catch (error) {
+    res.json({ err: "Deleting an estore failed. " + error.message });
   }
 };
 

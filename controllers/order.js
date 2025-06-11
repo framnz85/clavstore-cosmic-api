@@ -707,6 +707,9 @@ exports.updateOrderStatus = async (req, res) => {
 
   try {
     const user = await User.findOne({ email }).exec();
+    const orderedUser = await User.findOne({
+      _id: new ObjectId(orderedBy),
+    }).exec();
     if (user) {
       const orderForChecking = await Order.findOne({
         _id: new ObjectId(orderid),
@@ -810,7 +813,7 @@ exports.updateOrderStatus = async (req, res) => {
             await updateOrderedProd(order.products, estoreid, true);
           }
           if (orderType === "web" && order.orderStatus === "Completed") {
-            createRaffle(estoreid, user, order);
+            createRaffle(estoreid, orderedUser, order);
           }
           if (orderStatus === "Cancelled") {
             removeUpdates(
