@@ -121,10 +121,6 @@ exports.getPackage = async (req, res) => {
         reseller: estore.reseller,
         payments,
       });
-    } else {
-      res.json({
-        err: "Error getting the package",
-      });
     }
   } catch (error) {
     res.json({ err: "Fetching reseller information fails. " + error.message });
