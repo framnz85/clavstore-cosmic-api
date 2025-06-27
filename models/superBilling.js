@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
 const { ObjectId } = mongoose.Schema;
 const conn = require("../dbconnect/super");
-const Package = require("./package");
-const Payment = require("./payment");
+const Package = require("./superPackage");
+const Payment = require("./superPayment");
 
 const billingSchema = new mongoose.Schema(
   {
