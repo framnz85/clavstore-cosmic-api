@@ -46,6 +46,14 @@ const orderSchema = new mongoose.Schema(
         "Completed",
       ],
     },
+    deliveryPrefer: {
+      type: String,
+      default: "Deliver",
+      enum: ["Deliver", "Pickup"],
+    },
+    deliverInstruct: {
+      type: String,
+    },
     statusHistory: [{ status: String, remarks: String, date: Date }],
     cartTotal: Number,
     delfee: Number,

@@ -121,7 +121,7 @@ exports.userOrders = async (req, res) => {
         .populate("orderedBy", "_id")
         .populate("paymentOption", "bankName")
         .select(
-          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus estoreid createdAt"
+          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid createdAt"
         )
         .exec();
 
@@ -200,8 +200,9 @@ exports.adminOrders = async (req, res) => {
         .skip((currentPage - 1) * pageSize)
         .sort({ [sortkey]: sort })
         .limit(pageSize)
+        .populate("paymentOption")
         .select(
-          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus estoreid createdAt"
+          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid createdAt"
         )
         .exec();
     } else {
@@ -245,8 +246,9 @@ exports.adminOrders = async (req, res) => {
         .sort({ [sortkey]: sort })
         .limit(pageSize)
         .select(
-          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus estoreid createdAt"
+          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid createdAt"
         )
+        .populate("paymentOption")
         .exec();
     }
 
@@ -528,6 +530,8 @@ exports.saveCartOrder = async (req, res) => {
   const delAddress = req.body.delAddress;
   const orderNotes = req.body.orderNotes;
   const orderStatus = req.body.orderStatus;
+  const deliveryPrefer = req.body.deliveryPrefer;
+  const deliverInstruct = req.body.deliverInstruct;
 
   const orderedBy = req.body.orderedBy;
   const customerName = req.body.customerName;
@@ -614,6 +618,8 @@ exports.saveCartOrder = async (req, res) => {
         estoreid: new ObjectId(estoreid),
         delAddress,
         orderNotes,
+        deliveryPrefer,
+        deliverInstruct,
       });
 
       const order = await newOrder.save();
@@ -1036,6 +1042,8 @@ exports.submitEditOrder = async (req, res) => {
   const discount = req.body.discount;
   const servefee = req.body.servefee;
   const paymentOption = req.body.paymentOption;
+  const deliveryPrefer = req.body.deliveryPrefer;
+  const deliverInstruct = req.body.deliverInstruct;
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
 
@@ -1063,6 +1071,8 @@ exports.submitEditOrder = async (req, res) => {
             discount,
             servefee,
             paymentOption: new ObjectId(paymentOption),
+            deliveryPrefer,
+            deliverInstruct,
           },
           { new: true }
         );

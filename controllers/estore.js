@@ -39,6 +39,7 @@ exports.getDefaultEstore = async (req, res) => {
   const resellid = req.headers.resellid;
   const branchid = req.headers.branchid;
   const defaultslug = req.headers.defaultslug;
+
   try {
     let defaultEstore = {};
     if (defaultslug === "branch") {
@@ -55,6 +56,7 @@ exports.getDefaultEstore = async (req, res) => {
         .populate("country")
         .exec();
     }
+    console.log(defaultEstore);
     if (defaultEstore) {
       res.json(defaultEstore);
     } else {
