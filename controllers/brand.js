@@ -81,7 +81,6 @@ exports.checkImageUser = async (req, res) => {
       }
     }
   } catch (error) {
-    console.log(error.message);
     res.status(400).send("Checking image user failed.");
   }
 };

@@ -56,7 +56,6 @@ exports.getDefaultEstore = async (req, res) => {
         .populate("country")
         .exec();
     }
-    console.log(defaultEstore);
     if (defaultEstore) {
       res.json(defaultEstore);
     } else {

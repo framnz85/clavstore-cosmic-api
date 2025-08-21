@@ -65,7 +65,6 @@ exports.payXendit = async (req, res) => {
     });
     res.json(response.actions[0].url);
   } catch (error) {
-    console.log(error.message);
     res.json({ err: "Getting payments fails. " + error.message });
   }
 };

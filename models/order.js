@@ -40,6 +40,7 @@ const orderSchema = new mongoose.Schema(
         "Waiting Payment",
         "Processing",
         "Delivering",
+        "Pickup",
         "Cancelled",
         "Void",
         "Credit",
