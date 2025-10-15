@@ -121,7 +121,7 @@ exports.userOrders = async (req, res) => {
         .populate("orderedBy", "_id")
         .populate("paymentOption", "bankName")
         .select(
-          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid createdAt"
+          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid duedate createdAt"
         )
         .exec();
 
@@ -202,7 +202,7 @@ exports.adminOrders = async (req, res) => {
         .limit(pageSize)
         .populate("paymentOption")
         .select(
-          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid createdAt"
+          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid duedate createdAt"
         )
         .exec();
     } else {
@@ -246,7 +246,7 @@ exports.adminOrders = async (req, res) => {
         .sort({ [sortkey]: sort })
         .limit(pageSize)
         .select(
-          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid createdAt"
+          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid duedate createdAt"
         )
         .populate("paymentOption")
         .exec();
@@ -526,6 +526,7 @@ exports.saveCartOrder = async (req, res) => {
   const servefee = req.body.servefee;
   const addDiscount = req.body.addDiscount;
   const cash = req.body.cash;
+  const duedate = req.body.duedate;
   const paymentOption = req.body.paymentOption;
   const delAddress = req.body.delAddress;
   const orderNotes = req.body.orderNotes;
@@ -612,6 +613,7 @@ exports.saveCartOrder = async (req, res) => {
         servefee,
         addDiscount,
         cash,
+        duedate,
         createdBy: user._id,
         orderedBy: checkUser && checkUser._id ? checkUser._id : user._id,
         orderedName: customerName || user.name,

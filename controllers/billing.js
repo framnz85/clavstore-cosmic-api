@@ -14,13 +14,13 @@ exports.latestBill = async (req, res) => {
     if (packid === "all") {
       latest = await Billing.findOne({
         estoreid: new ObjectId(estoreid),
-        status: "Unpaid",
+        status: { $in: ["Unpaid", "Pending"] },
       }).sort({ payDeadline: 1 });
     } else {
       latest = await Billing.findOne({
         estoreid: new ObjectId(estoreid),
         package: new ObjectId(packid),
-        status: "Unpaid",
+        status: { $in: ["Unpaid", "Pending"] },
       }).sort({ payDeadline: 1 });
     }
     if (latest) {
@@ -29,6 +29,7 @@ exports.latestBill = async (req, res) => {
       res.json({ ok: true });
     }
   } catch (error) {
+    console.log(error.message);
     res.json({ err: "Getting latest bill fails. " + error.message });
   }
 };
@@ -138,10 +139,13 @@ exports.addBilling = async (req, res) => {
       estoreid: new ObjectId(values[0].estoreid),
       userid: new ObjectId(user._id),
       package: new ObjectId(values[0].package),
-      status: "Unpaid",
+      status: { $in: ["Unpaid", "Pending"] },
     });
     if (checkExistBill) {
-      res.json({ err: "You have already pending order for this account" });
+      res.json({
+        ok: true,
+        message: "You have already pending order for this account",
+      });
     } else {
       for (let i = 0; i < values.length; i++) {
         data = {
