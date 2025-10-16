@@ -47,6 +47,8 @@ exports.sendPurchase = async (req, res) => {
           content_type: "product",
           currency: userData.currency || "PHP",
           value: userData.value || 0,
+          page_name: userData.page_name || "",
+          page_url: userData.page_url || "",
         },
       },
     ],
