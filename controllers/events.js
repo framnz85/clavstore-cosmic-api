@@ -10,6 +10,8 @@ const hashData = (data) => {
 };
 
 exports.sendPurchase = async (req, res) => {
+  const clientIp =
+    req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress;
   const { eventID, eventSourceUrl, userData } = req.body;
 
   const event_time = Math.floor(Date.now() / 1000);
@@ -27,7 +29,7 @@ exports.sendPurchase = async (req, res) => {
   if (userData.userAgent) user_data.client_user_agent = userData.userAgent;
   if (userData.fbc) user_data.fbc = userData.fbc;
   if (userData.fbp) user_data.fbp = userData.fbp;
-  if (userData.ip) user_data.client_ip_address = userData.ip;
+  if (userData.ip) user_data.client_ip_address = clientIp;
 
   const data = {
     data: [
@@ -67,8 +69,12 @@ exports.sendPurchase = async (req, res) => {
 };
 
 exports.sendAnyEvent = async (req, res) => {
+  const clientIp =
+    req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress;
   const { event_id, event_name, event_source_url, user_data, ...rest } =
     req.body;
+
+  console.log(clientIp);
 
   const event_time = Math.floor(Date.now() / 1000);
 
@@ -86,7 +92,7 @@ exports.sendAnyEvent = async (req, res) => {
   if (user_data.fbp) hashedUserData.fbp = user_data.fbp;
   if (user_data.externalID)
     hashedUserData.external_id = hashData(user_data.externalID);
-  if (user_data.ip) hashedUserData.client_ip_address = user_data.ip;
+  if (user_data.ip) hashedUserData.client_ip_address = clientIp;
 
   const data = {
     data: [
