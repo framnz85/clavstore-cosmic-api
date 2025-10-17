@@ -70,11 +70,16 @@ exports.sendPurchase = async (req, res) => {
 
 exports.sendAnyEvent = async (req, res) => {
   const clientIp =
-    req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress;
+    req.headers["cf-connecting-ip"] ||
+    req.headers["x-real-ip"] ||
+    req.headers["x-forwarded-for"]?.split(",")[0] ||
+    req.ip;
+  const cleanIp = clientIp?.replace("::ffff:", "").trim();
+
   const { event_id, event_name, event_source_url, user_data, ...rest } =
     req.body;
 
-  console.log(clientIp);
+  console.log(cleanIp);
 
   const event_time = Math.floor(Date.now() / 1000);
 
@@ -92,7 +97,7 @@ exports.sendAnyEvent = async (req, res) => {
   if (user_data.fbp) hashedUserData.fbp = user_data.fbp;
   if (user_data.externalID)
     hashedUserData.external_id = hashData(user_data.externalID);
-  if (user_data.ip) hashedUserData.client_ip_address = clientIp;
+  if (user_data.ip) hashedUserData.client_ip_address = cleanIp;
 
   const data = {
     data: [
