@@ -9,9 +9,18 @@ const hashData = (data) => {
   return crypto.createHash("sha256").update(data).digest("hex");
 };
 
+const getClientIp = (req) => {
+  const ip =
+    req.headers["cf-connecting-ip"] || // Cloudflare
+    req.headers["x-real-ip"] || // Vercel / Nginx
+    req.headers["x-forwarded-for"]?.split(",")[0] || // Proxies
+    req.ip;
+
+  return ip?.replace("::ffff:", "").trim();
+};
+
 exports.sendPurchase = async (req, res) => {
-  const clientIp =
-    req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress;
+  const clientIp = getClientIp(req);
   const { eventID, eventSourceUrl, userData } = req.body;
 
   const event_time = Math.floor(Date.now() / 1000);
@@ -69,13 +78,7 @@ exports.sendPurchase = async (req, res) => {
 };
 
 exports.sendAnyEvent = async (req, res) => {
-  const clientIp =
-    req.headers["cf-connecting-ip"] ||
-    req.headers["x-real-ip"] ||
-    req.headers["x-forwarded-for"]?.split(",")[0] ||
-    req.ip;
-  const cleanIp = clientIp?.replace("::ffff:", "").trim();
-
+  const clientIp = getClientIp(req);
   const { event_id, event_name, event_source_url, user_data, ...rest } =
     req.body;
 
@@ -95,7 +98,7 @@ exports.sendAnyEvent = async (req, res) => {
   if (user_data.fbp) hashedUserData.fbp = user_data.fbp;
   if (user_data.externalID)
     hashedUserData.external_id = hashData(user_data.externalID);
-  hashedUserData.client_ip_address = cleanIp;
+  hashedUserData.client_ip_address = clientIp;
 
   const data = {
     data: [
@@ -117,7 +120,7 @@ exports.sendAnyEvent = async (req, res) => {
       data,
       { params: { access_token: accessToken } }
     );
-    res.status(200).send({ success: true, response: response.data, cleanIp });
+    res.status(200).send({ success: true, response: response.data, clientIp });
   } catch (error) {
     res.status(500).send({ success: false, error: error.message });
   }
