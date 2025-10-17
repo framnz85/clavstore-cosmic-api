@@ -120,7 +120,7 @@ exports.sendAnyEvent = async (req, res) => {
       data,
       { params: { access_token: accessToken } }
     );
-    res.status(200).send({ success: true, response: response.data, clientIp });
+    res.status(200).send({ success: true, response: response.data });
   } catch (error) {
     res.status(500).send({ success: false, error: error.message });
   }
