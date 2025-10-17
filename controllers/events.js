@@ -29,7 +29,7 @@ exports.sendPurchase = async (req, res) => {
   if (userData.userAgent) user_data.client_user_agent = userData.userAgent;
   if (userData.fbc) user_data.fbc = userData.fbc;
   if (userData.fbp) user_data.fbp = userData.fbp;
-  if (userData.ip) user_data.client_ip_address = clientIp;
+  user_data.client_ip_address = clientIp;
 
   const data = {
     data: [
@@ -79,8 +79,6 @@ exports.sendAnyEvent = async (req, res) => {
   const { event_id, event_name, event_source_url, user_data, ...rest } =
     req.body;
 
-  console.log(cleanIp);
-
   const event_time = Math.floor(Date.now() / 1000);
 
   const hashedUserData = {};
@@ -97,7 +95,7 @@ exports.sendAnyEvent = async (req, res) => {
   if (user_data.fbp) hashedUserData.fbp = user_data.fbp;
   if (user_data.externalID)
     hashedUserData.external_id = hashData(user_data.externalID);
-  if (user_data.ip) hashedUserData.client_ip_address = cleanIp;
+  hashedUserData.client_ip_address = cleanIp;
 
   const data = {
     data: [
@@ -119,7 +117,7 @@ exports.sendAnyEvent = async (req, res) => {
       data,
       { params: { access_token: accessToken } }
     );
-    res.status(200).send({ success: true, response: response.data });
+    res.status(200).send({ success: true, response: response.data, cleanIp });
   } catch (error) {
     res.status(500).send({ success: false, error: error.message });
   }
