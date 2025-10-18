@@ -174,6 +174,13 @@ exports.updateBilling = async (req, res) => {
     if (data && data.bank) {
       data = { ...data, bank: new ObjectId(data.bank) };
     }
+    const checkExistBill = await Billing.findOne({
+      _id: new ObjectId(billid),
+      estoreid: new ObjectId(estoreid),
+    });
+    if (checkExistBill && checkExistBill.status === "Paid") {
+      data = { ...data, status: "Paid" };
+    }
     const result = await Billing.findOneAndUpdate(
       {
         _id: new ObjectId(billid),
