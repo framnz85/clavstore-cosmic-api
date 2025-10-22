@@ -14,7 +14,6 @@ const productSchema = new mongoose.Schema(
       trim: true,
       required: true,
       maxlength: 128,
-      text: true,
     },
     youtubeid: String,
     slug: {

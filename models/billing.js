@@ -41,8 +41,6 @@ const billingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-billingSchema.index({ name: "text" });
-
 const Billing = conn.model("GratisBilling", billingSchema);
 
 module.exports = Billing;
