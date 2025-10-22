@@ -82,9 +82,6 @@ exports.sendAnyEvent = async (req, res) => {
   const { event_id, event_name, event_source_url, user_data, ...rest } =
     req.body;
 
-  console.log("Event ID => ", event_id);
-  console.log("Event Source URL => ", event_source_url);
-
   const event_time = Math.floor(Date.now() / 1000);
 
   const hashedUserData = {};
