@@ -82,6 +82,8 @@ exports.sendAnyEvent = async (req, res) => {
   const { event_id, event_name, event_source_url, user_data, ...rest } =
     req.body;
 
+  consoile.log(event_id);
+
   const event_time = Math.floor(Date.now() / 1000);
 
   const hashedUserData = {};

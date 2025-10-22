@@ -6,7 +6,6 @@ const orderSchema = new mongoose.Schema(
   {
     orderCode: {
       type: String,
-      index: true,
     },
     orderType: {
       type: String,
