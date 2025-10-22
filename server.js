@@ -1,5 +1,4 @@
 const express = require("express");
-const morgan = require("morgan");
 const cors = require("cors");
 const { readdirSync } = require("fs");
 require("dotenv").config();
@@ -8,7 +7,11 @@ const app = express();
 
 app.set("trust proxy", true);
 
-app.use(morgan("dev"));
+if (process.env.NODE_ENV !== "production") {
+  const morgan = require("morgan");
+  app.use(morgan("dev"));
+}
+
 app.use(express.json({ limit: "2mb" }));
 app.use(cors());
 
