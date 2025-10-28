@@ -109,7 +109,7 @@ exports.sendAnyEvent = async (req, res) => {
         action_source: "website",
         event_id,
         user_data: hashedUserData,
-        custom_data: rest || {},
+        custom_data: rest.custom_data || {},
       },
     ],
   };
