@@ -54,10 +54,11 @@ exports.sendPurchase = async (req, res) => {
         },
         custom_data: {
           content_name: "Cosmic Clavstore",
-          content_ids: ["123456789"],
+          content_ids: ["5x1olmtwt9"],
           content_type: "product",
           currency: userData.currency || "PHP",
           value: userData.value || 0,
+          net_revenue: userData.net_revenue || 0,
           page_name: userData.page_name || "",
           page_url: userData.page_url || "",
         },
