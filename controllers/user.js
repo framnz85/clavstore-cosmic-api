@@ -464,6 +464,15 @@ exports.updateUser = async (req, res) => {
     if (checkUser && checkUser.verifyCode && checkUser.verifyCode.length > 0) {
       objValues = { ...req.body, verifyCode: checkUser.verifyCode };
     }
+    if (
+      checkUser &&
+      checkUser.estoreid !== estoreid &&
+      !checkUser.superAdmin &&
+      !checkUser.changeStore
+    ) {
+      res.json({ err: "Admin does not allowed you to change store" });
+      return;
+    }
     const user = await User.findOneAndUpdate(
       { email, estoreid: new ObjectId(estoreid) },
       objValues,

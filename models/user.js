@@ -80,6 +80,7 @@ const userSchema = new mongoose.Schema(
     resellid: ObjectId,
     deleteAccount: { request: Boolean, reasons: Array },
     wishlist: [{ type: ObjectId, ref: "Product" }],
+    changeStore: { type: Boolean, default: false },
     wholesale: { type: Boolean, default: true },
     allowServerBusy: { type: Boolean, default: true },
     server: {
