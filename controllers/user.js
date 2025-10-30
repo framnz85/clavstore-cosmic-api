@@ -687,6 +687,49 @@ exports.deleteAccountRequest = async (req, res) => {
   }
 };
 
+exports.importUsers = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  try {
+    const users = req.body.users;
+    for (let i = 0; i < users.length; i++) {
+      if (users[i]._id && ObjectId.isValid(users[i]._id)) {
+        await User.findOneAndUpdate(
+          {
+            _id: new ObjectId(users[i]._id),
+            estoreid: new ObjectId(estoreid),
+          },
+          users[i],
+          { new: true }
+        );
+      } else {
+        const checkExist = await User.findOne({
+          email: users[i].email,
+          estoreid: new ObjectId(estoreid),
+        });
+        if (checkExist) {
+          await User.findOneAndUpdate(
+            {
+              email: users[i].email,
+              estoreid: new ObjectId(estoreid),
+            },
+            users[i],
+            { new: true }
+          );
+        } else {
+          const user = new User({
+            ...users[i],
+            estoreid: new ObjectId(estoreid),
+          });
+          await user.save();
+        }
+      }
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    res.json({ err: "Importing users failed. " + error.message });
+  }
+};
+
 exports.deleteUser = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const userid = req.params.userid;

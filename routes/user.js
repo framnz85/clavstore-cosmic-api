@@ -18,6 +18,7 @@ const {
   sendEmail,
   addToWishlist,
   deleteAccountRequest,
+  importUsers,
 } = require("../controllers/user");
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
 
@@ -51,6 +52,7 @@ router.put(
 );
 router.put("/gratis/forgot-password", forgotPassword);
 router.put("/gratis/delete-account-request", deleteAccountRequest);
+router.put("/gratis/import-users", authCheck, adminGratisCheck, importUsers);
 router.delete(
   "/gratis/user-delete/:userid",
   authCheck,
