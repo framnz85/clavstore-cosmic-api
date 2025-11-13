@@ -466,13 +466,14 @@ exports.updateUser = async (req, res) => {
     }
     if (
       checkUser &&
-      checkUser.estoreid !== estoreid &&
+      checkUser.estoreid.toString() !== estoreid &&
       !checkUser.superAdmin &&
       !checkUser.changeStore
     ) {
       res.json({ err: "Admin does not allowed you to change store" });
       return;
     }
+
     const user = await User.findOneAndUpdate(
       { email, estoreid: new ObjectId(estoreid) },
       objValues,
@@ -487,6 +488,7 @@ exports.updateUser = async (req, res) => {
         },
       })
       .select("-password -showPass");
+
     res.json(user);
   } catch (error) {
     res.json({ err: "Updating user fails. " + error.message });

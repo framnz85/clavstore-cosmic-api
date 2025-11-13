@@ -20,7 +20,6 @@ const getClientIp = (req) => {
 };
 
 exports.sendPurchase = async (req, res) => {
-  const clientIp = getClientIp(req);
   const { eventID, eventSourceUrl, userData } = req.body;
 
   const event_time = Math.floor(Date.now() / 1000);
@@ -33,12 +32,19 @@ exports.sendPurchase = async (req, res) => {
   if (userData.zipcode) user_data.zp = hashData(userData.zipcode);
   if (userData.country) user_data.country = hashData(userData.country);
   if (userData.city) user_data.ct = hashData(userData.city);
+  if (userData.userAgent) user_data.client_user_agent = userData.userAgent;
   if (userData.externalID)
     user_data.external_id = hashData(userData.externalID);
-  if (userData.userAgent) user_data.client_user_agent = userData.userAgent;
+  if (userData.ip && userData.ip !== "") {
+    user_data.client_ip_address = userData.ip;
+  } else {
+    const clientIp = getClientIp(req);
+    if (clientIp) {
+      user_data.client_ip_address = clientIp;
+    }
+  }
   if (userData.fbc) user_data.fbc = userData.fbc;
   if (userData.fbp) user_data.fbp = userData.fbp;
-  user_data.client_ip_address = clientIp;
 
   const data = {
     data: [
@@ -53,12 +59,13 @@ exports.sendPurchase = async (req, res) => {
           attribution_share: "0.3",
         },
         custom_data: {
-          content_name: "Cosmic Clavstore",
-          content_ids: ["5x1olmtwt9"],
-          content_type: "product",
-          currency: userData.currency || "PHP",
+          content_name: userData.content_name || "Cosmic Clavstore",
+          content_category: userData.content_category || "Sales",
+          content_ids: userData.content_ids || ["5x1olmtwt9"],
+          content_type: userData.content_type || "product",
           value: userData.value || 0,
           net_revenue: userData.net_revenue || 0,
+          currency: userData.currency || "PHP",
           page_name: userData.page_name || "",
           page_url: userData.page_url || "",
         },
@@ -79,7 +86,6 @@ exports.sendPurchase = async (req, res) => {
 };
 
 exports.sendAnyEvent = async (req, res) => {
-  const clientIp = getClientIp(req);
   const { event_id, event_name, event_source_url, user_data, ...rest } =
     req.body;
 
@@ -99,7 +105,14 @@ exports.sendAnyEvent = async (req, res) => {
   if (user_data.fbp) hashedUserData.fbp = user_data.fbp;
   if (user_data.externalID)
     hashedUserData.external_id = hashData(user_data.externalID);
-  hashedUserData.client_ip_address = clientIp;
+  if (user_data.ip && user_data.ip !== "") {
+    hashedUserData.client_ip_address = user_data.ip;
+  } else {
+    const clientIp = getClientIp(req);
+    if (clientIp) {
+      hashedUserData.client_ip_address = clientIp;
+    }
+  }
 
   const data = {
     data: [

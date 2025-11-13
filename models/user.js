@@ -66,11 +66,7 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    endPoint: [
-      {
-        type: String,
-      },
-    ],
+    endPoint: [],
     dayNotify: {
       type: Number,
       default: 0,
