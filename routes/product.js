@@ -21,6 +21,7 @@ const {
   deleteWaitingProduct,
   checkImageUser,
 } = require("../controllers/product");
+const { getMarketPrices } = require("../controllers/superProduct");
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
 
 router.get("/gratis/products/random/:count", randomItems);
@@ -56,6 +57,12 @@ router.get(
   authCheck,
   adminGratisCheck,
   checkImageUser
+);
+router.get(
+  "/gratis/get-market-prices/:barcode",
+  authCheck,
+  adminGratisCheck,
+  getMarketPrices
 );
 router.post(
   "/gratis/get-admin-products",
