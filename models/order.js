@@ -89,7 +89,10 @@ const orderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-orderSchema.index({ orderCode: "text", orderedName: "text" });
+orderSchema.index({
+  orderCode: "text",
+  orderedName: "text",
+});
 
 const Order = conn.model("GratisOrder", orderSchema);
 

@@ -90,7 +90,12 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-userSchema.index({ name: "text" });
+userSchema.index({
+  name: "text",
+  email: "text",
+  phone: "text",
+  address: "text",
+});
 
 const User = conn.model("GratisUser", userSchema);
 

@@ -403,7 +403,14 @@ const estoreSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-estoreSchema.index({ name: "text" });
+estoreSchema.index({
+  name: "text",
+  slug: "text",
+  email: "text",
+  storeDescription: "text",
+  storeAddress: "text",
+  storeContact: "text",
+});
 
 const Estore = conn.model("GratisEstore", estoreSchema);
 
