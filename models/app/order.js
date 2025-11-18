@@ -68,7 +68,18 @@ const orderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-orderSchema.index({ orderCode: "text", orderedName: "text" });
+orderSchema.index(
+  {
+    orderCode: "text",
+    orderedName: "text",
+  },
+  {
+    weights: {
+      orderCode: 5,
+      orderedName: 3,
+    },
+  }
+);
 
 const Order = conn.model("GratisOrder", orderSchema);
 

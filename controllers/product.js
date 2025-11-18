@@ -244,23 +244,20 @@ exports.getAdminItems = async (req, res) => {
       sales,
     } = req.body;
 
-    let searchObj = searchQuery
-      ? { $text: { $search: searchQuery }, estoreid: new ObjectId(estoreid) }
-      : { estoreid: new ObjectId(estoreid) };
+    const searchObj = { estoreid: new ObjectId(estoreid) };
 
-    if (category && category !== "1") {
-      searchObj = {
-        ...searchObj,
-        category: new ObjectId(category),
-      };
+    if (searchQuery) {
+      searchObj.$or = [
+        { title: { $regex: searchQuery, $options: "i" } },
+        { description: { $regex: searchQuery, $options: "i" } },
+        { slug: { $regex: searchQuery, $options: "i" } },
+      ];
     }
 
-    if (barcode) {
-      searchObj = {
-        ...searchObj,
-        barcode: { $ne: null },
-      };
-    }
+    if (category && category !== "1")
+      searchObj.category = new ObjectId(category);
+
+    if (barcode) searchObj.barcode = { $ne: null };
 
     let products = await Product.find(searchObj)
       .skip((currentPage - 1) * pageSize)
@@ -355,12 +352,16 @@ exports.searchProduct = async (req, res) => {
   const type = req.body.type;
   const price = req.body.price;
   const page = req.body.page;
-  let querySearch = {};
-  let noResultSearch = {};
+  const querySearch = {};
+  const noResultSearch = {};
   let products = [];
 
   if (text) {
-    querySearch = { ...querySearch, $text: { $search: text } };
+    querySearch.$or = [
+      { title: { $regex: text, $options: "i" } },
+      { description: { $regex: text, $options: "i" } },
+      { slug: { $regex: text, $options: "i" } },
+    ];
   }
 
   if (type === "brand") {
@@ -370,11 +371,8 @@ exports.searchProduct = async (req, res) => {
         estoreid: new ObjectId(estoreid),
       });
       if (brand) {
-        querySearch = { ...querySearch, brand: new ObjectId(brand._id) };
-        noResultSearch = {
-          ...noResultSearch,
-          brand: new ObjectId(brand._id),
-        };
+        querySearch.brand = new ObjectId(brand._id);
+        noResultSearch.brand = new ObjectId(brand._id);
       }
     }
   } else {
@@ -384,23 +382,20 @@ exports.searchProduct = async (req, res) => {
         estoreid: new ObjectId(estoreid),
       });
       if (category) {
-        querySearch = { ...querySearch, category: new ObjectId(category._id) };
-        noResultSearch = {
-          ...noResultSearch,
-          category: new ObjectId(category._id),
-        };
+        querySearch.category = new ObjectId(category._id);
+        noResultSearch.category = new ObjectId(category._id);
       }
     }
   }
 
   if (price) {
-    querySearch = {
-      ...querySearch,
-      price: { $gt: parseFloat(price[0]), $lt: parseFloat(price[1]) },
+    querySearch.price = {
+      $gt: parseFloat(price[0]),
+      $lt: parseFloat(price[1]),
     };
-    noResultSearch = {
-      ...noResultSearch,
-      price: { $gt: parseFloat(price[0]), $lt: parseFloat(price[1]) },
+    noResultSearch.price = {
+      $gt: parseFloat(price[0]),
+      $lt: parseFloat(price[1]),
     };
   }
   try {

@@ -233,6 +233,7 @@ exports.getAllowedEstores = async (req, res) => {
 exports.searchEstoreByText = async (req, res) => {
   const resellid = req.headers.resellid;
   const searchText = req.body.searchText;
+  const searchObj = {};
 
   try {
     if (ObjectId.isValid(searchText)) {
@@ -250,8 +251,16 @@ exports.searchEstoreByText = async (req, res) => {
         .exec();
       res.json(estore);
     } else {
+      searchObj.$or = [
+        { name: { $regex: searchText, $options: "i" } },
+        { slug: { $regex: searchText, $options: "i" } },
+        { email: { $regex: searchText, $options: "i" } },
+        { storeDescription: { $regex: searchText, $options: "i" } },
+        { storeAddress: { $regex: searchText, $options: "i" } },
+        { storeContact: { $regex: searchText, $options: "i" } },
+      ];
       const estore = await Estore.find({
-        $text: { $search: searchText },
+        ...searchObj,
         status: "active",
         resellid: new ObjectId(resellid),
         $or: [

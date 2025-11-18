@@ -402,14 +402,26 @@ const estoreSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-estoreSchema.index({
-  name: "text",
-  slug: "text",
-  email: "text",
-  storeDescription: "text",
-  storeAddress: "text",
-  storeContact: "text",
-});
+estoreSchema.index(
+  {
+    name: "text",
+    slug: "text",
+    email: "text",
+    storeDescription: "text",
+    storeAddress: "text",
+    storeContact: "text",
+  },
+  {
+    weights: {
+      name: 5,
+      storeDescription: 3,
+      slug: 2,
+      email: 1,
+      storeAddress: 1,
+      storeContact: 1,
+    },
+  }
+);
 
 const Estore = conn.model("GratisEstore", estoreSchema);
 

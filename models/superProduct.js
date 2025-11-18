@@ -139,7 +139,16 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-productSchema.index({ title: "text", slug: "text ", description: "text" });
+productSchema.index(
+  { title: "text", description: "text", slug: "text " },
+  {
+    weights: {
+      title: 5,
+      description: 3,
+      slug: 1,
+    },
+  }
+);
 
 const Product = conn.model("GratisProduct", productSchema);
 

@@ -253,9 +253,16 @@ exports.getAllUsers = async (req, res) => {
       estoreid: new ObjectId(estoreid),
     });
 
-    let searchObj = searchQuery
-      ? { $text: { $search: searchQuery }, estoreid: new ObjectId(estoreid) }
-      : { estoreid: new ObjectId(estoreid) };
+    const searchObj = { estoreid: new ObjectId(estoreid) };
+
+    if (searchQuery) {
+      searchObj.$or = [
+        { name: { $regex: searchQuery, $options: "i" } },
+        { email: { $regex: searchQuery, $options: "i" } },
+        { phone: { $regex: searchQuery, $options: "i" } },
+        { address: { $regex: searchQuery, $options: "i" } },
+      ];
+    }
 
     const estoreids = await Estore.aggregate([
       {

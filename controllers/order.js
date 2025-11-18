@@ -99,20 +99,16 @@ exports.userOrders = async (req, res) => {
 
   try {
     const { sortkey, sort, currentPage, pageSize, searchQuery } = req.body;
-
     const user = await User.findOne({ email }).exec();
+    const searchObj = { estoreid: new ObjectId(estoreid), orderedBy: user._id };
 
     if (user) {
-      const searchObj = searchQuery
-        ? {
-            $or: [
-              { orderCode: searchQuery },
-              { $text: { $search: searchQuery } },
-            ],
-            estoreid: new ObjectId(estoreid),
-            orderedBy: user._id,
-          }
-        : { estoreid: new ObjectId(estoreid), orderedBy: user._id };
+      if (searchQuery) {
+        searchObj.$or = [
+          { orderCode: { $regex: searchQuery, $options: "i" } },
+          { orderedName: { $regex: searchQuery, $options: "i" } },
+        ];
+      }
 
       const orders = await Order.find(searchObj)
         .skip((currentPage - 1) * pageSize)
@@ -156,26 +152,20 @@ exports.adminOrders = async (req, res) => {
     } = req.body;
 
     const user = await User.findOne({ email }).exec();
-
-    let searchObj = {};
+    const searchObj = {};
 
     if (user.role === "cashier") {
-      searchObj = searchQuery
-        ? {
-            $or: [
-              { orderCode: searchQuery },
-              { $text: { $search: searchQuery } },
-            ],
-            estoreid: new ObjectId(estoreid),
-            createdBy: user._id,
-          }
-        : { estoreid: new ObjectId(estoreid), createdBy: user._id };
-      if (status !== "All Status") {
-        searchObj = { ...searchObj, orderStatus: status };
+      searchObj.estoreid = new ObjectId(estoreid);
+      searchObj.createdBy = user._id;
+      if (searchQuery) {
+        searchObj.$or = [
+          { orderCode: { $regex: searchQuery, $options: "i" } },
+          { orderedName: { $regex: searchQuery, $options: "i" } },
+        ];
       }
-      if (orderedBy) {
-        searchObj = { ...searchObj, orderedBy: new ObjectId(orderedBy) };
-      }
+      if (status !== "All Status") searchObj.orderStatus = status;
+      if (orderedBy) searchObj.orderedBy = new ObjectId(orderedBy);
+
       if (sales && sales.type && sales.type === "sales") {
         const startDate = new Date(
           new Date(sales.dateStart).setHours(
@@ -188,12 +178,9 @@ exports.adminOrders = async (req, res) => {
           )
         );
         startDate.setDate(startDate.getDate() - 1);
-        searchObj = {
-          ...searchObj,
-          createdAt: {
-            $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
-            $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
-          },
+        searchObj.createdAt = {
+          $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
+          $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
         };
       }
       orders = await Order.find(searchObj)
@@ -206,21 +193,16 @@ exports.adminOrders = async (req, res) => {
         )
         .exec();
     } else {
-      searchObj = searchQuery
-        ? {
-            $or: [
-              { orderCode: searchQuery },
-              { $text: { $search: searchQuery } },
-            ],
-            estoreid: new ObjectId(estoreid),
-          }
-        : { estoreid: new ObjectId(estoreid) };
-      if (status !== "All Status") {
-        searchObj = { ...searchObj, orderStatus: status };
+      searchObj.estoreid = new ObjectId(estoreid);
+      if (searchQuery) {
+        searchObj.$or = [
+          { orderCode: { $regex: searchQuery, $options: "i" } },
+          { orderedName: { $regex: searchQuery, $options: "i" } },
+        ];
       }
-      if (orderedBy) {
-        searchObj = { ...searchObj, orderedBy: new ObjectId(orderedBy) };
-      }
+      if (status !== "All Status") searchObj.orderStatus = status;
+      if (orderedBy) searchObj.orderedBy = new ObjectId(orderedBy);
+
       if (sales && sales.type && sales.type === "sales") {
         const startDate = new Date(
           new Date(sales.dateStart).setHours(
@@ -233,12 +215,9 @@ exports.adminOrders = async (req, res) => {
           )
         );
         startDate.setDate(startDate.getDate() - 1);
-        searchObj = {
-          ...searchObj,
-          createdAt: {
-            $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
-            $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
-          },
+        searchObj.createdAt = {
+          $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
+          $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
         };
       }
       orders = await Order.find(searchObj)
