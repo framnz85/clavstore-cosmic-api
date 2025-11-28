@@ -16,6 +16,7 @@ const userSchema = new mongoose.Schema(
         type: ObjectId,
       },
     ],
+    image: Object,
     name: {
       type: String,
       required: true,

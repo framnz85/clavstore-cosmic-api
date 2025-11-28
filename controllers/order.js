@@ -187,10 +187,11 @@ exports.adminOrders = async (req, res) => {
         .skip((currentPage - 1) * pageSize)
         .sort({ [sortkey]: sort })
         .limit(pageSize)
-        .populate("paymentOption")
         .select(
-          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid duedate createdAt"
+          "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt"
         )
+        .populate("orderedBy")
+        .populate("paymentOption")
         .exec();
     } else {
       searchObj.estoreid = new ObjectId(estoreid);
@@ -225,8 +226,9 @@ exports.adminOrders = async (req, res) => {
         .sort({ [sortkey]: sort })
         .limit(pageSize)
         .select(
-          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid duedate createdAt"
+          "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt"
         )
+        .populate("orderedBy")
         .populate("paymentOption")
         .exec();
     }
@@ -565,6 +567,14 @@ exports.saveCartOrder = async (req, res) => {
     if (checkProdQty && checkProdQty.err) {
       res.json({ err: checkProdQty.err, backToCart: true });
     } else {
+      const estore = await Estore.findOne({
+        _id: Object(estoreid),
+      });
+
+      if (!estore.orderInitStat) estore.orderInitStat = "Not Processed";
+      if (!estore.orderInitRemarks)
+        estore.orderInitRemarks = "Order was created.";
+
       const newOrder = new Order({
         orderCode: cart._id.toString().slice(-12),
         orderType,
@@ -575,14 +585,14 @@ exports.saveCartOrder = async (req, res) => {
             ? orderStatus === "Credit"
               ? "Credit"
               : "Completed"
-            : "Not Processed",
+            : estore.orderInitStat,
         statusHistory: [
           {
             status:
               orderStatus === "Completed" || orderStatus === "Credit"
                 ? orderStatus
-                : "Not Processed",
-            remarks: "Order was created.",
+                : estore.orderInitStat,
+            remarks: estore.orderInitRemarks,
             date: new Date(),
           },
         ],
@@ -613,9 +623,6 @@ exports.saveCartOrder = async (req, res) => {
           estoreid: Object(estoreid),
         });
 
-        const estore = await Estore.findOne({
-          _id: Object(estoreid),
-        });
         if (
           orderType === "pos" &&
           (order.orderStatus === "Credit" || order.orderStatus === "Completed")
@@ -628,7 +635,7 @@ exports.saveCartOrder = async (req, res) => {
           orderType === "web" &&
           estore &&
           estore.orderStatus &&
-          estore.orderStatus === "Not Processed"
+          estore.orderStatus === estore.orderInitStat
         ) {
           await updateOrderedProd(order.products, estoreid, true);
         }

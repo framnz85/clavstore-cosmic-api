@@ -345,6 +345,15 @@ const estoreSchema = new mongoose.Schema(
         link: String,
       },
     ],
+    orderInitStat: {
+      type: String,
+      default: "Not Processed",
+      enum: ["Not Processed", "Waiting Payment", "Processing"],
+    },
+    orderInitRemarks: {
+      type: String,
+      default: "Order was created.",
+    },
     orderStatus: {
       type: String,
       default: "Delivering",
