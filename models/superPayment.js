@@ -17,6 +17,7 @@ const paymentSchema = new mongoose.Schema(
       enum: ["basic", "single", "multiple", "dedicated"],
       default: "basic",
     },
+    active: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

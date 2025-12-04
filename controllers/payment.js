@@ -21,7 +21,10 @@ exports.getPayment = async (req, res) => {
 exports.getPayments = async (req, res) => {
   const estoreid = req.headers.estoreid;
   try {
-    const payments = await Payment.find({ estoreid: new ObjectId(estoreid) });
+    const payments = await Payment.find({
+      estoreid: new ObjectId(estoreid),
+      purpose: "basic",
+    });
     res.json(payments);
   } catch (error) {
     res.json({ err: "Getting payments fails. " + error.message });

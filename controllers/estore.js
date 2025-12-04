@@ -148,6 +148,7 @@ exports.getPackages = async (req, res) => {
       const payments = await Payment.find({
         estoreid: new ObjectId(estoreid),
         purpose: packages[i].defaultPackage,
+        active: true,
       }).exec();
       finalPackages.push({
         ...packages[i]._doc,

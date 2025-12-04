@@ -268,7 +268,8 @@ exports.getAllUsers = async (req, res) => {
       {
         $match: {
           status: "active",
-          $or: [{ upgradeType: "2" }, { upStatus2: "Active" }],
+          upgradeType: "2",
+          upStatus2: "Active",
         },
       },
       {
