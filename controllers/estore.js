@@ -434,6 +434,7 @@ exports.addNewEstore = async (req, res) => {
       });
       if (!checkStoreExist) {
         const estore = new Estore({
+          storeType: req.body.storeType || "store",
           name: req.body.name,
           email: user.email,
           slug: slugify(req.body.name.toString().toLowerCase()),
@@ -442,6 +443,8 @@ exports.addNewEstore = async (req, res) => {
           upgradeType: "2",
           upStatus: "Active",
           upStatus2: "Active",
+          headerColor:
+            req.body.storeType === "warehouse" ? "#4A4A4A" : "#009A57",
         });
         await estore.save();
 
@@ -471,6 +474,7 @@ exports.copyingEstore = async (req, res) => {
       });
       if (!checkStoreExist) {
         const estore = new Estore({
+          storeType: req.body.storeType || "store",
           name: req.body.name,
           email: user.email,
           slug: slugify(req.body.name.toString().toLowerCase()),
@@ -479,6 +483,8 @@ exports.copyingEstore = async (req, res) => {
           upgradeType: "2",
           upStatus: "Active",
           upStatus2: "Active",
+          headerColor:
+            req.body.storeType === "warehouse" ? "#4A4A4A" : "#009A57",
         });
         await estore.save();
 

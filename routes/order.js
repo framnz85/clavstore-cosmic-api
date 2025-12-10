@@ -19,6 +19,11 @@ const {
   deleteAdminOrder,
   deleteOrder,
 } = require("../controllers/order");
+const {
+  saveCartWarehouseOrder,
+  adminWarehouseOrders,
+  adminWarehouseOrder,
+} = require("../controllers/orderware");
 const { authCheck, adminGratisCheck } = require("../middlewares/auth");
 
 router.get("/gratis/user-order/:orderid", authCheck, userOrder);
@@ -29,10 +34,27 @@ router.get(
   adminGratisCheck,
   adminOrder
 );
+router.get(
+  "/gratis/admin-warehouse-order/:orderid",
+  authCheck,
+  adminGratisCheck,
+  adminWarehouseOrder
+);
 router.post("/gratis/user-orders", authCheck, userOrders);
 router.post("/gratis/admin-orders", authCheck, adminGratisCheck, adminOrders);
+router.post(
+  "/gratis/admin-warehouse-orders",
+  authCheck,
+  adminGratisCheck,
+  adminWarehouseOrders
+);
 router.post("/gratis/update-cart", authCheck, updateCart);
 router.post("/gratis/save-cart-order", authCheck, saveCartOrder);
+router.post(
+  "/gratis/save-cart-warehouse-order",
+  authCheck,
+  saveCartWarehouseOrder
+);
 router.post("/gratis/admin-sales", authCheck, adminGratisCheck, adminSales);
 router.put(
   "/gratis/update-order-status",

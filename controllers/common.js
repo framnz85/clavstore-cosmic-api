@@ -168,7 +168,7 @@ exports.checkOrderedProd = async (products, estoreid) => {
     let finalDiscount = 0;
     const checkProduct = await Product.findOne({
       _id: new ObjectId(products[i].product),
-      estoreid: Object(estoreid),
+      estoreid: new ObjectId(estoreid),
     });
     if (!products[i].excess && checkProduct) {
       if (
@@ -234,7 +234,7 @@ exports.checkOrderedProd = async (products, estoreid) => {
 const handleUpdateProd = async (product, estoreid, updateType) => {
   const checkProduct = await Product.findOne({
     _id: new ObjectId(product.product),
-    estoreid: Object(estoreid),
+    estoreid: new ObjectId(estoreid),
   });
   if (checkProduct) {
     let finalQty = 0;
@@ -253,7 +253,7 @@ const handleUpdateProd = async (product, estoreid, updateType) => {
     const result = await Product.findOneAndUpdate(
       {
         _id: new ObjectId(product.product),
-        estoreid: Object(estoreid),
+        estoreid: new ObjectId(estoreid),
       },
       {
         quantity: parseFloat(finalQty) > 0 ? parseFloat(finalQty) : 0,
@@ -308,7 +308,7 @@ const handleUpdateProd = async (product, estoreid, updateType) => {
       await Product.findOneAndUpdate(
         {
           _id: new ObjectId(product.product),
-          estoreid: Object(estoreid),
+          estoreid: new ObjectId(estoreid),
         },
         {
           quantity: newQuantity,
@@ -374,5 +374,117 @@ exports.populateAddress = async (addiv3, estoreid) => {
     return result;
   } else {
     return addiv3;
+  }
+};
+
+const handleUpdateToProd = async (
+  product,
+  frmestoreid,
+  toestoreid,
+  updateType
+) => {
+  const orConditions = [];
+  const searchObj = {};
+
+  const checkProduct = await Product.findOne({
+    _id: new ObjectId(product.product),
+    estoreid: new ObjectId(frmestoreid),
+  });
+
+  if (checkProduct._id) {
+    orConditions.push({ _id: new ObjectId(checkProduct._id) });
+    orConditions.push({ prod_code: new ObjectId(checkProduct._id) });
+  }
+
+  if (checkProduct.prod_code) {
+    orConditions.push({ _id: new ObjectId(checkProduct.prod_code) });
+    orConditions.push({ prod_code: new ObjectId(checkProduct.prod_code) });
+  }
+
+  if (checkProduct.barcode) {
+    orConditions.push({ barcode: checkProduct.barcode });
+  }
+
+  if (orConditions.length > 0) {
+    searchObj.$or = orConditions;
+  }
+
+  searchObj.estoreid = new ObjectId(toestoreid);
+
+  const checkToProduct = await Product.findOne(searchObj);
+
+  if (checkToProduct) {
+    let finalQty = 0;
+
+    if (updateType) {
+      finalQty =
+        parseFloat(checkToProduct.quantity) + parseFloat(product.count);
+    } else {
+      finalQty =
+        parseFloat(checkToProduct.quantity) - parseFloat(product.count);
+    }
+
+    await Product.findOneAndUpdate(
+      {
+        _id: new ObjectId(checkToProduct._id),
+        estoreid: new ObjectId(toestoreid),
+      },
+      {
+        quantity: parseFloat(finalQty) > 0 ? parseFloat(finalQty) : 0,
+      },
+      { new: true }
+    );
+  }
+};
+
+exports.updateOrderedWareProd = async (
+  products,
+  frmestoreid,
+  toestoreid,
+  updateType
+) => {
+  let remainingProds = products;
+  const listOfExcess = products.filter((prod) => prod.excess);
+
+  if (updateType) {
+    for (i = 0; i < listOfExcess.length; i++) {
+      let mainExcess = products.filter(
+        (prod) =>
+          prod.product.toString() === listOfExcess[i].product.toString() &&
+          prod._id.toString() !== listOfExcess[i]._id.toString()
+      );
+      if (mainExcess[0] && mainExcess[0]._id) {
+        await handleUpdateProd(mainExcess[0], frmestoreid, updateType);
+        await handleUpdateToProd(
+          mainExcess[0],
+          frmestoreid,
+          toestoreid,
+          updateType
+        );
+        remainingProds = remainingProds.filter(
+          (prod) => prod._id.toString() !== mainExcess[0]._id.toString()
+        );
+        await handleUpdateProd(listOfExcess[i], frmestoreid, updateType);
+        await handleUpdateToProd(
+          listOfExcess[i],
+          frmestoreid,
+          toestoreid,
+          updateType
+        );
+        remainingProds = remainingProds.filter(
+          (prod) => prod._id.toString() !== listOfExcess[i]._id.toString()
+        );
+      }
+    }
+  }
+
+  for (i = 0; i < remainingProds.length; i++) {
+    await handleUpdateProd(remainingProds[i], frmestoreid, updateType);
+    await handleUpdateToProd(
+      remainingProds[i],
+      frmestoreid,
+      toestoreid,
+      updateType
+    );
   }
 };

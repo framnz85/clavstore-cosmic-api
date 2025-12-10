@@ -5,6 +5,11 @@ const Country = require("./country");
 
 const estoreSchema = new mongoose.Schema(
   {
+    storeType: {
+      type: String,
+      default: "store",
+      enum: ["store", "warehouse"],
+    },
     name: {
       type: String,
       required: true,
