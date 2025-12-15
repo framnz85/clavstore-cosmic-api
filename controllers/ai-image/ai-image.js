@@ -8,7 +8,7 @@ const axios = require("axios");
 const { makeFeedsForSession } = require("./embed_helper");
 
 const MODEL_URL =
-  "https://clavstoreimages.etnants.com/dedicated/onnx_model/clip_image.onnx";
+  "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/model.onnx";
 
 const MODEL_DIR = path.join(__dirname, "models");
 const MODEL_PATH = path.join(MODEL_DIR, "clip_image.onnx");
