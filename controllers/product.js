@@ -2,6 +2,7 @@ const ObjectId = require("mongoose").Types.ObjectId;
 const slugify = require("slugify");
 
 const Product = require("../models/product");
+const Estore = require("../models/estore");
 const User = require("../models/user");
 const Category = require("../models/category");
 const Brand = require("../models/brand");
@@ -518,6 +519,28 @@ exports.updateProduct = async (req, res) => {
   }
 
   try {
+    const estore = await Estore.findOne({
+      _id: new ObjectId(estoreid),
+    })
+      .populate("upgradeType upStatus2")
+      .exec();
+
+    const countProduct = await Product.countDocuments({
+      aiIndex: true,
+    }).exec();
+
+    if (
+      countProduct > 100 &&
+      values.aiIndex === true &&
+      (estore.upgradeType !== "2" || estore.upStatus2 !== "Active")
+    ) {
+      res.json({
+        err: "Sorry, you have reached the maximum number of AI indexed products. You can only index up to 100 products.",
+        upgrade: true,
+      });
+      return;
+    }
+
     const ratings = await Rating.find({
       prodid: new ObjectId(prodid),
       estoreid: new ObjectId(estoreid),

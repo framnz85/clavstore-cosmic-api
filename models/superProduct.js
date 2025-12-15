@@ -118,6 +118,10 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    aiIndex: {
+      type: Boolean,
+      default: false,
+    },
     prod_code: ObjectId,
     waiting: Object,
     vatExempt: Number,

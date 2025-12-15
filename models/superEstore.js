@@ -413,6 +413,7 @@ const estoreSchema = new mongoose.Schema(
     },
     domain: String,
     subdomain: String,
+    indexing: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
