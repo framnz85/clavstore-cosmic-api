@@ -124,6 +124,13 @@ exports.buildIndex = async (req, res) => {
       vectorIndex: index,
     }));
 
+    if (!fs.existsSync(MODEL_PATH)) {
+      return res.json({
+        ok: true,
+        err: "Server is currently preparing necessary files for AI training. Please try agin in a few minutes",
+      });
+    }
+
     const session = await ort.InferenceSession.create(MODEL_PATH, {
       executionProviders: ["cpu"],
     });
@@ -193,7 +200,6 @@ exports.buildIndex = async (req, res) => {
       indexPath: OUT_INDEX,
     });
   } catch (err) {
-    console.log(err.message);
-    return res.status(500).json({ ok: false, error: String(err) });
+    return res.json({ ok: false, error: String(err) });
   }
 };
