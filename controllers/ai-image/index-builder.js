@@ -170,8 +170,10 @@ exports.buildIndex = async (req, res) => {
 
     const outDir = path.dirname(OUT_INDEX);
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-
     index.writeIndex(OUT_INDEX);
+
+    const dbDir = path.dirname(dbPath);
+    if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
     fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 
     await addId(estoreid.toString());
@@ -191,6 +193,7 @@ exports.buildIndex = async (req, res) => {
       indexPath: OUT_INDEX,
     });
   } catch (err) {
+    console.log(err.message);
     return res.status(500).json({ ok: false, error: String(err) });
   }
 };
