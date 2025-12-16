@@ -54,16 +54,18 @@ async function ensureOnnxModel() {
   fs.writeFileSync(MODEL_PATH, Buffer.from(response.data));
 }
 
-(async () => {
-  try {
-    await ensureOnnxModel();
-    session = await ort.InferenceSession.create(MODEL_PATH, {
-      executionProviders: ["cpu"],
-    });
-  } catch (err) {
-    process.exit(1);
-  }
-})();
+if (process.env.ALLOW_INDEXING === "yes") {
+  (async () => {
+    try {
+      await ensureOnnxModel();
+      session = await ort.InferenceSession.create(MODEL_PATH, {
+        executionProviders: ["cpu"],
+      });
+    } catch (err) {
+      process.exit(1);
+    }
+  })();
+}
 
 const loadInitials = async (estoreid) => {
   index[estoreid] = null;
@@ -98,14 +100,16 @@ const loadInitials = async (estoreid) => {
   }
 };
 
-(async () => {
-  try {
-    const estoreids = JSON.parse(fs.readFileSync(ESTOREIDS_PATH, "utf8"));
-    for (const estoreid of estoreids) {
-      await loadInitials(estoreid);
-    }
-  } catch (e) {}
-})();
+if (process.env.ALLOW_INDEXING === "yes") {
+  (async () => {
+    try {
+      const estoreids = JSON.parse(fs.readFileSync(ESTOREIDS_PATH, "utf8"));
+      for (const estoreid of estoreids) {
+        await loadInitials(estoreid);
+      }
+    } catch (e) {}
+  })();
+}
 
 exports.searchProduct = async (req, res) => {
   const estoreid = String(req.headers.estoreid);

@@ -7,7 +7,9 @@ const { URL } = require("url");
 
 const CACHE_ROOT = path.join(__dirname, "product-images");
 
-if (!fs.existsSync(CACHE_ROOT)) fs.mkdirSync(CACHE_ROOT, { recursive: true });
+if (process.env.ALLOW_INDEXING === "yes") {
+  if (!fs.existsSync(CACHE_ROOT)) fs.mkdirSync(CACHE_ROOT, { recursive: true });
+}
 
 async function imageBufferToTensor(buffer, size = 224) {
   const { data, info } = await sharp(buffer)
