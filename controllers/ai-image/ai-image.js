@@ -116,10 +116,6 @@ exports.searchProduct = async (req, res) => {
   );
   const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
 
-  console.log("REQUEST estoreid header:", req.headers.estoreid);
-  console.log("Normalized estoreid:", String(req.headers.estoreid));
-  console.log("Loaded index keys:", Object.keys(index));
-
   try {
     if (!session) return res.status(500).json({ error: "Model not ready" });
     if (!req.file) return res.status(400).json({ error: "No photo uploaded" });
