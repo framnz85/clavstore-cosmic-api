@@ -101,9 +101,9 @@ const loadInitials = async (estoreid) => {
 (async () => {
   try {
     const estoreids = JSON.parse(fs.readFileSync(ESTOREIDS_PATH, "utf8"));
-    estoreids.forEach((estoreid) => {
-      loadInitials(estoreid);
-    });
+    for (const estoreid of estoreids) {
+      await loadInitials(estoreid);
+    }
   } catch (e) {}
 })();
 
