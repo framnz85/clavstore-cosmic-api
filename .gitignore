@@ -1,7 +1,2 @@
 node_modules
 .env
-controllers/ai-image/models
-controllers/ai-image/product-db
-controllers/ai-image/product-images
-controllers/ai-image/vectors
-controllers/ai-image/estoreids.json
