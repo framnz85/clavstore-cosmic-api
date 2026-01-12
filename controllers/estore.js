@@ -163,24 +163,11 @@ exports.getPackages = async (req, res) => {
 };
 
 exports.getDedicatedEstores = async (req, res) => {
-  const main = req.headers.main;
-  let estores = [];
-
   try {
-    if (main) {
-      estores = await Estore.find({
-        $or: [{ upgradeType: "2" }, { upStatus2: "Active" }],
-      }).exec();
-    } else {
-      estores = await Estore.find({
-        status: "active",
-        $or: [
-          { upgradeType: "2" },
-          { upStatus2: "Active" },
-          { showInApp: true, showInList: true },
-        ],
-      }).exec();
-    }
+    let estores = await Estore.find({
+      upgradeType: "2",
+      upStatus2: "Active",
+    }).exec();
 
     estores = await populateEstore(estores);
 
@@ -212,11 +199,7 @@ exports.getAllowedEstores = async (req, res) => {
   try {
     let estores = await Estore.find({
       status: "active",
-      $or: [
-        { upgradeType: "2" },
-        { upStatus2: "Active" },
-        { showInApp: true, showInList: true },
-      ],
+      $or: [{ showInApp: true, showInList: true }],
     })
       .skip((currentPage - 1) * pageSize)
       .sort({ [sortkey]: sort })
@@ -227,14 +210,13 @@ exports.getAllowedEstores = async (req, res) => {
 
     res.json(estores);
   } catch (error) {
-    res.json({ err: "Fetching dedicated stores fails. " + error.message });
+    res.json({ err: "Fetching allowed stores fails. " + error.message });
   }
 };
 
 exports.searchEstoreByText = async (req, res) => {
   const resellid = req.headers.resellid;
   const searchText = req.body.searchText;
-  const searchObj = {};
 
   try {
     if (ObjectId.isValid(searchText)) {
@@ -242,36 +224,32 @@ exports.searchEstoreByText = async (req, res) => {
         _id: new ObjectId(searchText),
         status: "active",
         resellid: new ObjectId(resellid),
-        $or: [
-          { upgradeType: "2" },
-          { upStatus2: "Active" },
-          { showInApp: true },
-        ],
+        showInApp: true,
       })
         .populate("country")
         .exec();
       res.json(estore);
     } else {
-      searchObj.$or = [
-        { name: { $regex: searchText, $options: "i" } },
-        { slug: { $regex: searchText, $options: "i" } },
-        { email: { $regex: searchText, $options: "i" } },
-        { storeDescription: { $regex: searchText, $options: "i" } },
-        { storeAddress: { $regex: searchText, $options: "i" } },
-        { storeContact: { $regex: searchText, $options: "i" } },
-      ];
       const estore = await Estore.find({
-        ...searchObj,
-        status: "active",
-        resellid: new ObjectId(resellid),
-        $or: [
-          { upgradeType: "2" },
-          { upStatus2: "Active" },
+        $and: [
+          {
+            $or: [
+              { name: { $regex: searchText, $options: "i" } },
+              { slug: { $regex: searchText, $options: "i" } },
+              { email: { $regex: searchText, $options: "i" } },
+              { storeDescription: { $regex: searchText, $options: "i" } },
+              { storeAddress: { $regex: searchText, $options: "i" } },
+              { storeContact: { $regex: searchText, $options: "i" } },
+            ],
+          },
+          { status: "active" },
+          { resellid: new ObjectId(resellid) },
           { showInApp: true },
         ],
       })
         .populate("country")
         .exec();
+
       res.json(estore);
     }
   } catch (error) {
@@ -616,6 +594,19 @@ exports.updateEstoresDefault = async (req, res) => {
     res.json({ ok: true });
   } catch (error) {
     res.json({ err: "Updating estore default fails. " + error.message });
+  }
+};
+
+exports.updateEstoresVissible = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+
+  try {
+    await Estore.findByIdAndUpdate(estoreid, req.body, {
+      new: true,
+    }).exec();
+    res.json({ ok: true });
+  } catch (error) {
+    res.json({ err: "Updating estore vissibility fails. " + error.message });
   }
 };
 

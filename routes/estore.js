@@ -16,6 +16,7 @@ const {
   copyingEstore,
   updateEstoreCounters,
   updateEstoresDefault,
+  updateEstoresVissible,
   deletingEstore,
 } = require("../controllers/estore");
 const {
@@ -51,6 +52,7 @@ router.post(
 );
 router.put("/gratis/update-estore-counters", updateEstoreCounters);
 router.put("/gratis/update-estores-default", updateEstoresDefault);
+router.put("/gratis/update-estores-visible", updateEstoresVissible);
 router.delete(
   "/gratis/delete-estore/:deleteid",
   authCheck,
