@@ -6,6 +6,7 @@ const Estore = require("../models/estore");
 const productSchema = new mongoose.Schema(
   {
     customid: String,
+    lanerack: String,
     estoreid: {
       type: ObjectId,
       ref: Estore,

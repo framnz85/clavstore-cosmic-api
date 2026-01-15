@@ -4,6 +4,8 @@ const conn = require("../dbconnect/super");
 
 const productSchema = new mongoose.Schema(
   {
+    customid: String,
+    lanerack: String,
     estoreid: {
       type: ObjectId,
     },
