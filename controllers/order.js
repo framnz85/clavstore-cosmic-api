@@ -58,7 +58,7 @@ exports.userAppOrder = async (req, res) => {
       .exec();
     const token = jwt.sign(
       { email: order.orderedBy.email },
-      process.env.JWT_PRIVATE_KEY
+      process.env.JWT_PRIVATE_KEY,
     );
     if (order) {
       res.json({ order, token });
@@ -117,7 +117,7 @@ exports.userOrders = async (req, res) => {
         .populate("orderedBy", "_id")
         .populate("paymentOption", "bankName")
         .select(
-          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid duedate createdAt"
+          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid duedate createdAt",
         )
         .exec();
 
@@ -169,13 +169,13 @@ exports.adminOrders = async (req, res) => {
       if (sales && sales.type && sales.type === "sales") {
         const startDate = new Date(
           new Date(sales.dateStart).setHours(
-            new Date(sales.dateStart).getHours() + 8
-          )
+            new Date(sales.dateStart).getHours() + 8,
+          ),
         );
         const endDate = new Date(
           new Date(sales.endDate).setHours(
-            new Date(sales.endDate).getHours() + 8
-          )
+            new Date(sales.endDate).getHours() + 8,
+          ),
         );
         startDate.setDate(startDate.getDate() - 1);
         searchObj.createdAt = {
@@ -188,7 +188,7 @@ exports.adminOrders = async (req, res) => {
         .sort({ [sortkey]: sort })
         .limit(pageSize)
         .select(
-          "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt"
+          "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt",
         )
         .populate("orderedBy")
         .populate("paymentOption")
@@ -207,13 +207,13 @@ exports.adminOrders = async (req, res) => {
       if (sales && sales.type && sales.type === "sales") {
         const startDate = new Date(
           new Date(sales.dateStart).setHours(
-            new Date(sales.dateStart).getHours() + 8
-          )
+            new Date(sales.dateStart).getHours() + 8,
+          ),
         );
         const endDate = new Date(
           new Date(sales.endDate).setHours(
-            new Date(sales.endDate).getHours() + 8
-          )
+            new Date(sales.endDate).getHours() + 8,
+          ),
         );
         startDate.setDate(startDate.getDate() - 1);
         searchObj.createdAt = {
@@ -226,7 +226,7 @@ exports.adminOrders = async (req, res) => {
         .sort({ [sortkey]: sort })
         .limit(pageSize)
         .select(
-          "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt"
+          "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt",
         )
         .populate("orderedBy")
         .populate("paymentOption")
@@ -271,10 +271,12 @@ exports.adminSales = async (req, res) => {
   let orders = [];
 
   const startDate = new Date(
-    new Date(dates.dateStart).setHours(new Date(dates.dateStart).getHours() + 8)
+    new Date(dates.dateStart).setHours(
+      new Date(dates.dateStart).getHours() + 8,
+    ),
   );
   const endDate = new Date(
-    new Date(dates.endDate).setHours(new Date(dates.endDate).getHours() + 8)
+    new Date(dates.endDate).setHours(new Date(dates.endDate).getHours() + 8),
   );
 
   startDate.setDate(startDate.getDate() - 1);
@@ -370,14 +372,14 @@ exports.updateCart = async (req, res) => {
             productFromDb.wholesale.length > 0
           ) {
             const wholesales = productFromDb.wholesale.filter(
-              (wsale) => wsale.wcount <= cart[i].count
+              (wsale) => wsale.wcount <= cart[i].count,
             );
             if (wholesales.length > 0) {
               const largestCount = Math.max(
-                ...wholesales.map((large) => large.wcount)
+                ...wholesales.map((large) => large.wcount),
               );
               const largestWholesale = wholesales.filter(
-                (wsale) => wsale.wcount === largestCount
+                (wsale) => wsale.wcount === largestCount,
               );
               if (largestWholesale[0] && largestWholesale[0].wprice) {
                 price = largestWholesale[0].wprice;
@@ -489,6 +491,105 @@ exports.updateCart = async (req, res) => {
           waitingProduct: showWaiting ? waitingProduct : {},
         });
       }
+    } else {
+      res.json({ err: "Cannot fetch the cart details." });
+    }
+  } catch (error) {
+    res.json({ err: "Fetching cart fails. " + error.message });
+  }
+};
+
+exports.updateCartPurchase = async (req, res) => {
+  const { cart } = req.body;
+  const estoreid = req.headers.estoreid;
+  const email = req.user.email;
+  let products = [];
+
+  try {
+    const user = await User.findOne({ email }).exec();
+    if (user) {
+      for (let i = 0; i < cart.length; i++) {
+        let object = {};
+
+        object.product = cart[i]._id;
+        object.count = cart[i].count;
+        object.excess = cart[i].excess ? true : false;
+
+        const productFromDb = await Product.findOne({
+          _id: new ObjectId(cart[i]._id),
+          estoreid: new ObjectId(estoreid),
+        }).exec();
+        object.supplierPrice = cart[i].excess
+          ? cart[i].supplierPrice
+          : productFromDb.supplierPrice;
+        let price = 0;
+        if (cart[i].priceChange || cart[i].excess) {
+          price = cart[i].price;
+        } else {
+          if (
+            (user.role === "admin" || user.wholesale) &&
+            productFromDb.wholesale &&
+            productFromDb.wholesale.length > 0
+          ) {
+            const wholesales = productFromDb.wholesale.filter(
+              (wsale) => wsale.wcount <= cart[i].count,
+            );
+            if (wholesales.length > 0) {
+              const largestCount = Math.max(
+                ...wholesales.map((large) => large.wcount),
+              );
+              const largestWholesale = wholesales.filter(
+                (wsale) => wsale.wcount === largestCount,
+              );
+              if (largestWholesale[0] && largestWholesale[0].wprice) {
+                price = largestWholesale[0].wprice;
+              } else {
+                price = productFromDb.price;
+              }
+            } else {
+              price = productFromDb.price;
+            }
+          } else {
+            price = productFromDb.price;
+          }
+        }
+        object.price = price;
+        cart[i] = { ...cart[i], price };
+
+        if (
+          productFromDb &&
+          productFromDb.segregate &&
+          productFromDb.quantity < object.count
+        ) {
+          object.excessCount =
+            parseFloat(object.count) - parseFloat(productFromDb.quantity);
+        }
+
+        products.push(object);
+      }
+
+      let cartTotal = 0;
+      for (let i = 0; i < products.length; i++) {
+        products[i].product = new ObjectId(products[i].product);
+        cartTotal = cartTotal + products[i].price * products[i].count;
+      }
+
+      await Cart.deleteMany({
+        orderedBy: user._id,
+        estoreid: new ObjectId(estoreid),
+      }).exec();
+
+      Cart.collection.insertOne({
+        estoreid: new ObjectId(estoreid),
+        products,
+        cartTotal,
+        orderedBy: user._id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        __v: 0,
+      });
+
+      res.json({ cart });
     } else {
       res.json({ err: "Cannot fetch the cart details." });
     }
@@ -648,12 +749,150 @@ exports.saveCartOrder = async (req, res) => {
   }
 };
 
+exports.saveCartPurchase = async (req, res) => {
+  const estoreid = req.headers.estoreid || "";
+  const email = (req.user && req.user.email) || "";
+
+  const {
+    orderType = "web",
+    delfee = 0,
+    discount = 0,
+    servefee = 0,
+    addDiscount = 0,
+    cash = 0,
+    duedate = "",
+    paymentOption = "",
+    delAddress = "",
+    orderNotes = "",
+    deliveryPrefer = "",
+    deliverInstruct = "",
+    orderedBy = "",
+    customerName = "",
+    customerPhone = "",
+    customerEmail = "",
+  } = req.body || {};
+
+  const orderStatus = "For Purchase";
+
+  try {
+    let user = await User.findOne({ email }).exec();
+    let checkUser = {};
+
+    if (customerName) {
+      if (customerPhone) {
+        checkUser = await User.findOne({
+          phone: customerPhone,
+          estoreid: new ObjectId(estoreid),
+        });
+      }
+      if (customerEmail) {
+        checkUser = await User.findOne({
+          email: customerEmail,
+          estoreid: new ObjectId(estoreid),
+        });
+      }
+      if (orderedBy) {
+        checkUser = await User.findOne({
+          _id: new ObjectId(orderedBy),
+          estoreid: new ObjectId(estoreid),
+        });
+      }
+      if (!checkUser && (customerPhone || customerEmail)) {
+        const newUser = new User({
+          name: customerName,
+          phone: customerPhone ? customerPhone : "09100000001",
+          email: customerEmail ? customerEmail : "abc@xyz.com",
+          password: md5("Grocery@2000"),
+          showPass: "Grocery@2000",
+          role: "customer",
+          estoreid: new ObjectId(estoreid),
+        });
+        checkUser = await newUser.save();
+      }
+    }
+
+    const cart = await Cart.findOne({
+      orderedBy: user._id,
+      estoreid: Object(estoreid),
+    });
+
+    const estore = await Estore.findOne({
+      _id: Object(estoreid),
+    });
+
+    if (!estore.orderInitRemarks)
+      estore.orderInitRemarks = "Order was created.";
+
+    const newOrder = new Order({
+      orderCode: cart._id.toString().slice(-12),
+      orderType,
+      products: cart.products,
+      paymentOption: paymentOption ? new ObjectId(paymentOption) : undefined,
+      orderStatus,
+      statusHistory: [
+        {
+          status: orderStatus,
+          remarks: estore.orderInitRemarks,
+          date: new Date(),
+        },
+      ],
+      cartTotal: cart.cartTotal,
+      delfee,
+      discount,
+      servefee,
+      addDiscount,
+      cash,
+      duedate,
+      createdBy: user._id,
+      orderedBy: checkUser && checkUser._id ? checkUser._id : user._id,
+      orderedName: customerName || user.name,
+      estoreid: new ObjectId(estoreid),
+      delAddress,
+      orderNotes,
+      deliveryPrefer,
+      deliverInstruct,
+    });
+
+    const order = await newOrder.save();
+
+    if (order) {
+      res.json(order);
+
+      await Cart.deleteMany({
+        orderedBy: user._id,
+        estoreid: Object(estoreid),
+      });
+
+      if (
+        orderType === "pos" &&
+        (order.orderStatus === "Credit" || order.orderStatus === "Completed")
+      ) {
+        await updateOrderedProd(order.products, estoreid, true);
+
+        createRaffle(estoreid, user, order);
+      }
+      if (
+        orderType === "web" &&
+        estore &&
+        estore.orderStatus &&
+        estore.orderStatus === estore.orderInitStat
+      ) {
+        await updateOrderedProd(order.products, estoreid, true);
+      }
+    } else {
+      res.json({ err: "Cannot save the order." });
+    }
+  } catch (error) {
+    res.json({ err: "Saving cart to order fails. " + error.message });
+  }
+};
+
 const removeUpdates = async (
   estoreid,
   statusEstore,
   orderType,
   orderStatus,
-  products
+  products,
 ) => {
   if (statusEstore === "Not Processed") {
     if (orderType === "void") {
@@ -718,70 +957,76 @@ exports.updateOrderStatus = async (req, res) => {
       const statusEstore =
         estore && estore.orderStatus ? estore.orderStatus : "Delivering";
 
-      if (statusEstore === "Not Processed") {
-        if (
-          orderType === "web" &&
-          orderStatus !== "Cancelled" &&
-          orderStatus !== "Completed" &&
-          orderStatus !== "Delivering" &&
-          orderStatus !== "Processing" &&
-          orderStatus !== "Waiting Payment" &&
-          orderStatus !== "Not Processed"
-        ) {
-          checkProdQty = await checkOrderedProd(
-            orderForChecking.products,
-            estoreid
-          );
-        }
-      } else if (statusEstore === "Waiting Payment") {
-        if (
-          orderType === "web" &&
-          orderStatus !== "Cancelled" &&
-          orderStatus !== "Completed" &&
-          orderStatus !== "Delivering" &&
-          orderStatus !== "Processing" &&
-          orderStatus !== "Waiting Payment"
-        ) {
-          checkProdQty = await checkOrderedProd(
-            orderForChecking.products,
-            estoreid
-          );
-        }
-      } else if (statusEstore === "Processing") {
-        if (
-          orderType === "web" &&
-          orderStatus !== "Cancelled" &&
-          orderStatus !== "Completed" &&
-          orderStatus !== "Delivering" &&
-          orderStatus !== "Processing"
-        ) {
-          checkProdQty = await checkOrderedProd(
-            orderForChecking.products,
-            estoreid
-          );
-        }
-      } else if (statusEstore === "Delivering") {
-        if (
-          orderType === "web" &&
-          orderStatus !== "Cancelled" &&
-          orderStatus !== "Completed" &&
-          orderStatus !== "Delivering"
-        ) {
-          checkProdQty = await checkOrderedProd(
-            orderForChecking.products,
-            estoreid
-          );
-        }
-      } else {
-        if (
-          orderType === "web" &&
-          orderStatus !== "Cancelled" &&
-          orderStatus !== "Completed"
-        ) {
-          checkProdQty = await checkOrderedProd(
-            orderForChecking.products,
-            estoreid
-          );
+      const skipQtyCheck = ["For Purchase", "Purchased", "Received"].includes(
+        orderForChecking && orderForChecking.orderStatus,
+      );
+
+      if (!skipQtyCheck) {
+        if (statusEstore === "Not Processed") {
+          if (
+            orderType === "web" &&
+            orderStatus !== "Cancelled" &&
+            orderStatus !== "Completed" &&
+            orderStatus !== "Delivering" &&
+            orderStatus !== "Processing" &&
+            orderStatus !== "Waiting Payment" &&
+            orderStatus !== "Not Processed"
+          ) {
+            checkProdQty = await checkOrderedProd(
+              orderForChecking.products,
+              estoreid,
+            );
+          }
+        } else if (statusEstore === "Waiting Payment") {
+          if (
+            orderType === "web" &&
+            orderStatus !== "Cancelled" &&
+            orderStatus !== "Completed" &&
+            orderStatus !== "Delivering" &&
+            orderStatus !== "Processing" &&
+            orderStatus !== "Waiting Payment"
+          ) {
+            checkProdQty = await checkOrderedProd(
+              orderForChecking.products,
+              estoreid,
+            );
+          }
+        } else if (statusEstore === "Processing") {
+          if (
+            orderType === "web" &&
+            orderStatus !== "Cancelled" &&
+            orderStatus !== "Completed" &&
+            orderStatus !== "Delivering" &&
+            orderStatus !== "Processing"
+          ) {
+            checkProdQty = await checkOrderedProd(
+              orderForChecking.products,
+              estoreid,
+            );
+          }
+        } else if (statusEstore === "Delivering") {
+          if (
+            orderType === "web" &&
+            orderStatus !== "Cancelled" &&
+            orderStatus !== "Completed" &&
+            orderStatus !== "Delivering"
+          ) {
+            checkProdQty = await checkOrderedProd(
+              orderForChecking.products,
+              estoreid,
+            );
+          }
+        } else {
+          if (
+            orderType === "web" &&
+            orderStatus !== "Cancelled" &&
+            orderStatus !== "Completed"
+          ) {
+            checkProdQty = await checkOrderedProd(
+              orderForChecking.products,
+              estoreid,
+            );
+          }
         }
       }
 
@@ -798,7 +1043,7 @@ exports.updateOrderStatus = async (req, res) => {
             orderStatus,
             statusHistory,
           },
-          { new: true }
+          { new: true },
         );
         if (order) {
           res.json(order);
@@ -815,7 +1060,7 @@ exports.updateOrderStatus = async (req, res) => {
               statusEstore,
               orderType,
               orderStatus,
-              order.products
+              order.products,
             );
           }
         } else {
@@ -847,7 +1092,7 @@ exports.updatePaidOrder = async (req, res) => {
           orderStatus,
           statusHistory,
         },
-        { new: true }
+        { new: true },
       );
       if (order) {
         res.json(order);
@@ -877,7 +1122,7 @@ exports.updateCustomDetails = async (req, res) => {
           customDetails,
           customDetails2,
         },
-        { new: true }
+        { new: true },
       );
       if (order) {
         res.json(order);
@@ -908,7 +1153,7 @@ exports.updateProductRating = async (req, res) => {
         {
           products,
         },
-        { new: true }
+        { new: true },
       );
       if (order) {
         res.json(order);
@@ -1062,7 +1307,7 @@ exports.submitEditOrder = async (req, res) => {
             deliveryPrefer,
             deliverInstruct,
           },
-          { new: true }
+          { new: true },
         );
         if (order) {
           await Cart.deleteMany({
@@ -1100,7 +1345,7 @@ exports.deleteAdminOrder = async (req, res) => {
         statusEstore,
         order.orderType,
         order.orderStatus,
-        order.products
+        order.products,
       );
     }
     res.json(order);

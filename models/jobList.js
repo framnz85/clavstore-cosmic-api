@@ -11,11 +11,6 @@ const jobListSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
     },
-    slug: {
-      type: String,
-      lowercase: true,
-      index: true,
-    },
     title: {
       type: String,
       required: true,
@@ -25,26 +20,61 @@ const jobListSchema = new mongoose.Schema(
     description: {
       type: String,
     },
-    // price for doing the job (fixed fee)
-    price: {
-      amount: { type: Number, default: 0 },
-      currency: { type: String, default: "PHP" },
+    price: { type: Number, default: 0 },
+    uom: {
+      type: String,
+      enum: [
+        "each",
+        "unit",
+        "point",
+        "hour",
+        "hr",
+        "h",
+        "minute",
+        "min",
+        "day",
+        "d",
+        "week",
+        "wk",
+        "month",
+        "mo",
+        "session",
+        "visit",
+        "call",
+        "ticket",
+        "task",
+        "job",
+        "service",
+        "project",
+        "fixed",
+        "flat",
+        "package",
+        "mile",
+        "mi",
+        "km",
+      ],
+      default: "each",
+      trim: true,
     },
-    category: String,
-    tags: [String],
     isActive: { type: Boolean, default: true },
     createdBy: {
       type: ObjectId,
       ref: "GratisUser",
     },
-    meta: Object,
+    estoreid: {
+      type: ObjectId,
+      ref: "GratisEstore",
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // text index for search
-jobListSchema.index({ title: "text", description: "text", tags: "text" }, { weights: { title: 5, description: 2, tags: 1 } });
+jobListSchema.index(
+  { title: "text", description: "text", code: "text" },
+  { weights: { title: 5, description: 2, code: 1 } },
+);
 
-const JobList = conn.model("JobList", jobListSchema);
+const JobList = conn.model("GratisJobList", jobListSchema);
 
 module.exports = JobList;

@@ -21,7 +21,9 @@ const orderSchema = new mongoose.Schema(
         supplierPrice: Number,
         price: Number,
         count: Number,
+        excessCount: { type: Number, default: 0 },
         variant: ObjectId,
+        rated: { type: Boolean, default: false },
         excess: { type: Boolean, default: false },
       },
     ],
@@ -36,12 +38,15 @@ const orderSchema = new mongoose.Schema(
         "Not Processed",
         "Waiting Payment",
         "Processing",
+        "For Purchase",
         "Delivering",
         "Pickup",
         "Cancelled",
         "Void",
         "Credit",
         "Completed",
+        "Purchased",
+        "Received",
       ],
     },
     deliveryPrefer: {
@@ -52,20 +57,38 @@ const orderSchema = new mongoose.Schema(
     deliverInstruct: {
       type: String,
     },
+    statusHistory: [{ status: String, remarks: String, date: Date }],
     cartTotal: Number,
     delfee: Number,
     discount: Number,
+    servefee: Number,
     addDiscount: Number,
     grandTotal: Number,
     cash: Number,
+    duedate: Date,
     createdBy: { type: ObjectId, ref: "GratisUser" },
     orderedBy: { type: ObjectId, ref: "GratisUser" },
     orderedName: String,
     estoreid: ObjectId,
     delAddress: String,
     orderNotes: String,
+    customDetails: [
+      {
+        description: String,
+        value: String,
+      },
+    ],
+    customDetails2: [
+      {
+        description: String,
+        value: String,
+      },
+    ],
+    supplier: String,
+    billTo: String,
+    shipTo: String,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 orderSchema.index(
@@ -78,7 +101,7 @@ orderSchema.index(
       orderCode: 5,
       orderedName: 3,
     },
-  }
+  },
 );
 
 const Order = conn.model("GratisOrder", orderSchema);

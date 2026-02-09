@@ -1,0 +1,166 @@
+const ObjectId = require("mongoose").Types.ObjectId;
+const JobList = require("../models/jobList");
+
+exports.createJobList = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  try {
+    const { code, title, description, price, createdBy } = req.body;
+
+    if (!title || !code) {
+      return res.status(400).json({ message: "Title and code are required" });
+    }
+
+    const jobList = new JobList({
+      code,
+      title,
+      description,
+      price:
+        price && typeof price === "object"
+          ? price.amount || 0
+          : typeof price === "number"
+            ? price
+            : 0,
+      createdBy,
+      estoreid,
+    });
+
+    const saved = await jobList.save();
+    res
+      .status(201)
+      .json({ message: "Job list created successfully", data: saved });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error creating job list", error: error.message });
+  }
+};
+
+exports.getAllJobLists = async (req, res) => {
+  try {
+    const { search, isActive } = req.query;
+    let filter = {};
+
+    if (isActive !== undefined) filter.isActive = isActive === "true";
+
+    let query = JobList.find(filter);
+
+    if (search) {
+      query = query.find({ $text: { $search: search } });
+    }
+
+    const jobLists = await query
+      .populate("createdBy", "name email")
+      .sort({ createdAt: -1 });
+    res.status(200).json(jobLists);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error fetching job lists", error: error.message });
+  }
+};
+
+exports.getJobListById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const jobList = await JobList.findById(id).populate(
+      "createdBy",
+      "name email",
+    );
+
+    if (!jobList) {
+      return res.status(404).json({ message: "Job list not found" });
+    }
+
+    res.status(200).json(jobList);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error fetching job list", error: error.message });
+  }
+};
+
+exports.updateJobList = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    // remove any currency value if provided - currency is not stored per-job
+    if (updates.price && updates.price.currency) delete updates.price.currency;
+
+    // if price is provided as an object (e.g., { amount }), normalize to number
+    if (updates.price && typeof updates.price === "object")
+      updates.price = updates.price.amount || 0;
+
+    const jobList = await JobList.findByIdAndUpdate(id, updates, {
+      new: true,
+      runValidators: true,
+    }).populate("createdBy", "name email");
+
+    if (!jobList) {
+      return res.status(404).json({ message: "Job list not found" });
+    }
+
+    res.status(200).json(jobList);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error updating job list", error: error.message });
+  }
+};
+
+exports.deleteJobList = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const jobList = await JobList.findByIdAndDelete(id);
+
+    if (!jobList) {
+      return res.status(404).json({ message: "Job list not found" });
+    }
+
+    res.status(200).json(jobList);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error deleting job list", error: error.message });
+  }
+};
+
+exports.searchJobList = async (req, res) => {
+  const estoreid = req.headers.estoreid;
+  try {
+    const { sortkey, sort, currentPage, pageSize, searchQuery } = req.body;
+
+    const searchObj = { estoreid: new ObjectId(estoreid) };
+
+    if (searchQuery) {
+      searchObj.$or = [
+        { title: { $regex: searchQuery, $options: "i" } },
+        { description: { $regex: searchQuery, $options: "i" } },
+        { code: { $regex: searchQuery, $options: "i" } },
+      ];
+    }
+
+    let jobs = await JobList.find(searchObj)
+      .skip((currentPage - 1) * pageSize)
+      .sort({ [sortkey]: sort })
+      .limit(pageSize)
+      .exec();
+
+    if (jobs.length < 1 && searchQuery) {
+      jobs = await JobList.find({
+        title: { $regex: searchQuery, $options: "i" },
+        estoreid: new ObjectId(estoreid),
+      })
+        .skip((currentPage - 1) * pageSize)
+        .sort({ [sortkey]: sort })
+        .limit(pageSize)
+        .exec();
+    }
+
+    const countJobs = await JobList.countDocuments(searchObj).exec();
+
+    res.json({ jobs, count: countJobs });
+  } catch (error) {
+    res.json({ err: "Listing product failed. " + error.message });
+  }
+};

@@ -38,12 +38,15 @@ const orderSchema = new mongoose.Schema(
         "Not Processed",
         "Waiting Payment",
         "Processing",
+        "For Purchase",
         "Delivering",
         "Pickup",
         "Cancelled",
         "Void",
         "Credit",
         "Completed",
+        "Purchased",
+        "Received",
       ],
     },
     deliveryPrefer: {
@@ -64,15 +67,11 @@ const orderSchema = new mongoose.Schema(
     cash: Number,
     duedate: Date,
     createdBy: { type: ObjectId, ref: "GratisUser" },
-    orderedBy: { type: ObjectId, ref: "GratisEstore" },
+    orderedBy: { type: ObjectId, ref: "GratisUser" },
     orderedName: String,
     estoreid: ObjectId,
     delAddress: String,
     orderNotes: String,
-    vatSales: Number,
-    vatTwelve: Number,
-    vatExempt: Number,
-    zeroRated: Number,
     customDetails: [
       {
         description: String,
@@ -85,8 +84,11 @@ const orderSchema = new mongoose.Schema(
         value: String,
       },
     ],
+    supplier: String,
+    billTo: String,
+    shipTo: String,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 orderSchema.index(
@@ -99,7 +101,7 @@ orderSchema.index(
       orderCode: 5,
       orderedName: 3,
     },
-  }
+  },
 );
 
 const OrderWare = conn.model("GratisOrderWare", orderSchema);

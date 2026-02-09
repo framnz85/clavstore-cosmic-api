@@ -8,7 +8,9 @@ const {
   adminOrders,
   adminSales,
   updateCart,
+  updateCartPurchase,
   saveCartOrder,
+  saveCartPurchase,
   updateOrderStatus,
   updatePaidOrder,
   updateCustomDetails,
@@ -32,13 +34,13 @@ router.get(
   "/gratis/admin-order/:orderid",
   authCheck,
   adminGratisCheck,
-  adminOrder
+  adminOrder,
 );
 router.get(
   "/gratis/admin-warehouse-order/:orderid",
   authCheck,
   adminGratisCheck,
-  adminWarehouseOrder
+  adminWarehouseOrder,
 );
 router.post("/gratis/user-orders", authCheck, userOrders);
 router.post("/gratis/admin-orders", authCheck, adminGratisCheck, adminOrders);
@@ -46,21 +48,33 @@ router.post(
   "/gratis/admin-warehouse-orders",
   authCheck,
   adminGratisCheck,
-  adminWarehouseOrders
+  adminWarehouseOrders,
 );
 router.post("/gratis/update-cart", authCheck, updateCart);
+router.post(
+  "/gratis/update-cart-purchase",
+  authCheck,
+  adminGratisCheck,
+  updateCartPurchase,
+);
 router.post("/gratis/save-cart-order", authCheck, saveCartOrder);
+router.post(
+  "/gratis/save-cart-purchase",
+  authCheck,
+  adminGratisCheck,
+  saveCartPurchase,
+);
 router.post(
   "/gratis/save-cart-warehouse-order",
   authCheck,
-  saveCartWarehouseOrder
+  saveCartWarehouseOrder,
 );
 router.post("/gratis/admin-sales", authCheck, adminGratisCheck, adminSales);
 router.put(
   "/gratis/update-order-status",
   authCheck,
   adminGratisCheck,
-  updateOrderStatus
+  updateOrderStatus,
 );
 router.put("/gratis/update-paid-order", authCheck, updatePaidOrder);
 router.put("/gratis/update-custom-details", authCheck, updateCustomDetails);
@@ -72,7 +86,7 @@ router.delete(
   "/gratis/delete-admin-order/:orderid",
   authCheck,
   adminGratisCheck,
-  deleteAdminOrder
+  deleteAdminOrder,
 );
 router.delete("/gratis/delete-order/:orderid", authCheck, deleteOrder);
 

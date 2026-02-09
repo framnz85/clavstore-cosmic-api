@@ -156,7 +156,7 @@ exports.loadInitProducts = async (req, res) => {
         estoreid: estoreidFrom,
         initial: 1,
       }).select(
-        "-_id -discounttype -quantity -sold -createdAt -updatedAt -__v"
+        "-_id -discounttype -quantity -sold -createdAt -updatedAt -__v",
       );
 
       for (let i = products.length; i; i--) {
@@ -195,7 +195,7 @@ exports.loadInitProducts = async (req, res) => {
           await Product.updateMany(
             { category: new ObjectId(category._id), estoreid },
             { category: new ObjectId(newCategory._id) },
-            { new: true }
+            { new: true },
           );
         });
         res.json({ ok: true });
@@ -454,7 +454,7 @@ exports.submitRating = async (req, res) => {
           estoreid: new ObjectId(estoreid),
         },
         { rate, images, review },
-        { new: true }
+        { new: true },
       );
     } else {
       const newRating = new Rating({
@@ -492,7 +492,7 @@ exports.submitRating = async (req, res) => {
           rateDefault,
         },
       },
-      { new: true }
+      { new: true },
     );
 
     res.json({
@@ -553,14 +553,14 @@ exports.updateProduct = async (req, res) => {
           values.rateGrouprateDefault &&
           values.rateGroup.rateDefault.ratings
           ? values.rateGroup.rateDefault.ratings
-          : 0
+          : 0,
       ) *
         parseFloat(
           values.rateGroup &&
             values.rateGrouprateDefault &&
             values.rateGroup.rateDefault.ratingCount
             ? values.rateGroup.rateDefault.ratingCount
-            : 0
+            : 0,
         );
     const finalRatingCount =
       parseFloat(ratings.length) +
@@ -569,7 +569,7 @@ exports.updateProduct = async (req, res) => {
           values.rateGrouprateDefault &&
           values.rateGroup.rateDefault.ratingCount
           ? values.rateGroup.rateDefault.ratingCount
-          : 0
+          : 0,
       );
     const finalRating = finalRatings / finalRatingCount;
     let product = await Product.findOneAndUpdate(
@@ -588,7 +588,7 @@ exports.updateProduct = async (req, res) => {
               : { ratings: 0, ratingCount: 0 },
         },
       },
-      { new: true }
+      { new: true },
     );
 
     product = await populateProduct([product], estoreid);
@@ -623,7 +623,7 @@ exports.receiveProducts = async (req, res) => {
                 parseFloat(products[i].newQuantity)
               : parseFloat(products[i].newQuantity),
           },
-          { new: true }
+          { new: true },
         );
       } else {
         await Product.findOneAndUpdate(
@@ -632,7 +632,7 @@ exports.receiveProducts = async (req, res) => {
             estoreid: new ObjectId(estoreid),
           },
           { waiting: products[i] },
-          { new: true }
+          { new: true },
         );
       }
     }
@@ -714,7 +714,7 @@ exports.importProducts = async (req, res) => {
             estoreid: new ObjectId(estoreid),
           },
           products[i],
-          { new: true }
+          { new: true },
         );
       } else {
         const checkExist = await Product.findOne({
@@ -728,7 +728,7 @@ exports.importProducts = async (req, res) => {
               estoreid: new ObjectId(estoreid),
             },
             products[i],
-            { new: true }
+            { new: true },
           );
         } else {
           const product = new Product({
@@ -755,7 +755,7 @@ exports.updateWaitingProduct = async (req, res) => {
         estoreid: new ObjectId(estoreid),
       },
       { waiting: req.body },
-      { new: true }
+      { new: true },
     );
     res.json({ ok: true });
   } catch (error) {
@@ -792,7 +792,7 @@ exports.deleteWaitingProduct = async (req, res) => {
         estoreid: new ObjectId(estoreid),
       },
       { waiting: {} },
-      { new: true }
+      { new: true },
     );
     res.json({ ok: true });
   } catch (error) {
@@ -827,7 +827,13 @@ exports.checkImageUser = async (req, res) => {
           ? product.images.filter((img) => img.public_id === publicid)
           : [];
 
-      if (theImage[0].length > 0 && theImage[0].fromid) {
+      if (
+        theImage &&
+        theImage[0] &&
+        theImage[0].length &&
+        theImage[0].length > 0 &&
+        theImage[0].fromid
+      ) {
         if (theImage[0].fromid === estoreid) {
           res.json({ delete: true });
         } else {
@@ -838,6 +844,7 @@ exports.checkImageUser = async (req, res) => {
       }
     }
   } catch (error) {
+    console.log(error.message);
     res.status(400).send("Checking image user failed.");
   }
 };

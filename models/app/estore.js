@@ -267,6 +267,8 @@ const estoreSchema = new mongoose.Schema(
           "cancelorders",
           "deleteorders",
           "createvoid",
+          "purchaseorder",
+          "joborder",
           "category",
           "brand",
           "payment",
@@ -294,6 +296,8 @@ const estoreSchema = new mongoose.Schema(
           "cancelorders",
           "deleteorders",
           "createvoid",
+          "purchaseorder",
+          "joborder",
           "category",
           "brand",
           "payment",
@@ -385,6 +389,7 @@ const estoreSchema = new mongoose.Schema(
       ],
       customeNote: String,
     },
+    vatPercent: { type: Number, default: 12 },
     vatExempt: Number,
     vatExemptType: {
       type: String,
@@ -400,7 +405,7 @@ const estoreSchema = new mongoose.Schema(
     domain: String,
     subdomain: String,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 estoreSchema.index(
@@ -421,7 +426,7 @@ estoreSchema.index(
       storeAddress: 1,
       storeContact: 1,
     },
-  }
+  },
 );
 
 const Estore = conn.model("GratisEstore", estoreSchema);
