@@ -72,17 +72,20 @@ exports.userAppOrder = async (req, res) => {
 
 exports.adminOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
+  const warehouse = req.headers.warehouse;
   const orderid = req.params.orderid;
 
   try {
-    const order = await Order.findOne({
-      _id: new ObjectId(orderid),
-      estoreid: Object(estoreid),
-    })
+    const order = await Order.findOne(
+      warehouse
+        ? { _id: new ObjectId(orderid), supplierid: Object(estoreid) }
+        : { _id: new ObjectId(orderid), estoreid: Object(estoreid) },
+    )
       .populate("products.product")
       .populate("orderedBy")
       .populate("paymentOption")
       .exec();
+
     if (order) {
       res.json(order);
     } else {
@@ -149,13 +152,18 @@ exports.adminOrders = async (req, res) => {
       status,
       orderedBy,
       sales,
+      type,
     } = req.body;
 
     const user = await User.findOne({ email }).exec();
     const searchObj = {};
 
     if (user.role === "cashier") {
-      searchObj.estoreid = new ObjectId(estoreid);
+      if (type === "purchase") {
+        searchObj.supplierid = new ObjectId(estoreid);
+      } else {
+        searchObj.estoreid = new ObjectId(estoreid);
+      }
       searchObj.createdBy = user._id;
       if (searchQuery) {
         searchObj.$or = [
@@ -194,7 +202,11 @@ exports.adminOrders = async (req, res) => {
         .populate("paymentOption")
         .exec();
     } else {
-      searchObj.estoreid = new ObjectId(estoreid);
+      if (type === "purchase") {
+        searchObj.supplierid = new ObjectId(estoreid);
+      } else {
+        searchObj.estoreid = new ObjectId(estoreid);
+      }
       if (searchQuery) {
         searchObj.$or = [
           { orderCode: { $regex: searchQuery, $options: "i" } },
@@ -766,6 +778,10 @@ exports.saveCartPurchase = async (req, res) => {
     orderNotes = "",
     deliveryPrefer = "",
     deliverInstruct = "",
+    supplierid = "",
+    supplier = "",
+    billTo = "",
+    shipTo = "",
     orderedBy = "",
     customerName = "",
     customerPhone = "",
@@ -851,6 +867,10 @@ exports.saveCartPurchase = async (req, res) => {
       orderNotes,
       deliveryPrefer,
       deliverInstruct,
+      supplierid: supplierid ? new ObjectId(supplierid) : undefined,
+      supplier,
+      billTo,
+      shipTo,
     });
 
     const order = await newOrder.save();
@@ -935,7 +955,7 @@ exports.updateOrderStatus = async (req, res) => {
   let checkProdQty = {};
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
-  const { orderid, orderStatus, statusHistory, orderType, orderedBy } =
+  const { orderid, orderStatus, statusHistory, orderType, orderedBy, type } =
     req.body;
 
   try {
@@ -957,9 +977,12 @@ exports.updateOrderStatus = async (req, res) => {
       const statusEstore =
         estore && estore.orderStatus ? estore.orderStatus : "Delivering";
 
-      const skipQtyCheck = ["For Purchase", "Purchased", "Received"].includes(
-        orderForChecking && orderForChecking.orderStatus,
-      );
+      const skipQtyCheck =
+        type === "warehouse"
+          ? true
+          : ["For Purchase", "Purchased", "Received"].includes(
+              orderForChecking && orderForChecking.orderStatus,
+            );
 
       if (!skipQtyCheck) {
         if (statusEstore === "Not Processed") {
@@ -1037,7 +1060,9 @@ exports.updateOrderStatus = async (req, res) => {
           {
             _id: new ObjectId(orderid),
             orderedBy: new ObjectId(orderedBy),
-            estoreid: Object(estoreid),
+            ...(type === "warehouse"
+              ? { supplierid: Object(estoreid) }
+              : { estoreid: Object(estoreid) }),
           },
           {
             orderStatus,

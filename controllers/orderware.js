@@ -70,13 +70,13 @@ exports.adminWarehouseOrders = async (req, res) => {
       if (sales && sales.type && sales.type === "sales") {
         const startDate = new Date(
           new Date(sales.dateStart).setHours(
-            new Date(sales.dateStart).getHours() + 8
-          )
+            new Date(sales.dateStart).getHours() + 8,
+          ),
         );
         const endDate = new Date(
           new Date(sales.endDate).setHours(
-            new Date(sales.endDate).getHours() + 8
-          )
+            new Date(sales.endDate).getHours() + 8,
+          ),
         );
         startDate.setDate(startDate.getDate() - 1);
         searchObj.createdAt = {
@@ -89,7 +89,7 @@ exports.adminWarehouseOrders = async (req, res) => {
         .sort({ [sortkey]: sort })
         .limit(pageSize)
         .select(
-          "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt"
+          "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt",
         )
         .populate("orderedBy")
         .populate("paymentOption")
@@ -108,13 +108,13 @@ exports.adminWarehouseOrders = async (req, res) => {
       if (sales && sales.type && sales.type === "sales") {
         const startDate = new Date(
           new Date(sales.dateStart).setHours(
-            new Date(sales.dateStart).getHours() + 8
-          )
+            new Date(sales.dateStart).getHours() + 8,
+          ),
         );
         const endDate = new Date(
           new Date(sales.endDate).setHours(
-            new Date(sales.endDate).getHours() + 8
-          )
+            new Date(sales.endDate).getHours() + 8,
+          ),
         );
         startDate.setDate(startDate.getDate() - 1);
         searchObj.createdAt = {
@@ -127,7 +127,7 @@ exports.adminWarehouseOrders = async (req, res) => {
         .sort({ [sortkey]: sort })
         .limit(pageSize)
         .select(
-          "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt"
+          "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt",
         )
         .populate("orderedBy")
         .populate("paymentOption")
@@ -272,7 +272,7 @@ exports.saveCartWarehouseOrder = async (req, res) => {
             order.products,
             estoreid,
             orderedBy,
-            true
+            true,
           );
 
           createRaffle(estoreid, user, order);
@@ -287,7 +287,7 @@ exports.saveCartWarehouseOrder = async (req, res) => {
             order.products,
             estoreid,
             orderedBy,
-            true
+            true,
           );
         }
       } else {

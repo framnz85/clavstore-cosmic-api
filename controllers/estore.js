@@ -184,7 +184,7 @@ exports.getEstoreCounters = async (req, res) => {
     })
       .populate("country")
       .select(
-        "estoreChange userChange productChange categoryChange paymentChange orderChange locationChange"
+        "estoreChange userChange productChange categoryChange paymentChange orderChange locationChange",
       )
       .exec();
     res.json(estore);
@@ -257,10 +257,54 @@ exports.searchEstoreByText = async (req, res) => {
   }
 };
 
+exports.searchWarehouseByText = async (req, res) => {
+  const resellid = req.headers.resellid;
+  const searchText = req.body.searchText ? req.body.searchText.trim() : "";
+
+  try {
+    if (!searchText) {
+      res.json([]);
+      return;
+    }
+
+    const query = {
+      storeType: "warehouse",
+      status: "active",
+      $or: [
+        { name: { $regex: searchText, $options: "i" } },
+        { slug: { $regex: searchText, $options: "i" } },
+        { email: { $regex: searchText, $options: "i" } },
+      ],
+    };
+
+    if (resellid) {
+      query.resellid = new ObjectId(resellid);
+    }
+
+    const estores = await Estore.find(query)
+      .select("name storeAddress storeContact slug")
+      .limit(20)
+      .exec();
+
+    res.json(estores);
+  } catch (error) {
+    res.json({
+      err: "Fetching warehouse store information fails. " + error.message,
+    });
+  }
+};
+
 exports.updateEstore = async (req, res) => {
   const estoreid = req.headers.estoreid;
   let values = req.body;
   const name = req.body.name;
+  const type = values.type;
+  const typeEstoreid = values.typeEstoreid;
+
+  if (type === "warehouse" && ObjectId.isValid(typeEstoreid)) {
+    delete values.type;
+    delete values.typeEstoreid;
+  }
 
   if (name) {
     values = {
@@ -278,6 +322,11 @@ exports.updateEstore = async (req, res) => {
     if (!estore) {
       res.json({ err: "No eStore exist under ID: " + estoreid });
       return;
+    }
+    if (type === "warehouse" && ObjectId.isValid(typeEstoreid)) {
+      await Estore.findByIdAndUpdate(typeEstoreid, values, {
+        new: true,
+      }).exec();
     }
     res.json(estore);
   } catch (error) {
@@ -324,25 +373,25 @@ exports.createEstore = async (req, res) => {
                   upStatus: "Pending",
                 }
             : upPackage
-            ? {
-                name: req.body.name,
-                email: req.body.email,
-                slug: slugify(req.body.name.toString().toLowerCase()),
-                country: new ObjectId(req.body.country),
-                resellid: new ObjectId(resellid),
-                upgradeType: "1",
-                upStatus: "Pending",
-                upPackage: new ObjectId(upPackage),
-              }
-            : {
-                name: req.body.name,
-                email: req.body.email,
-                slug: slugify(req.body.name.toString().toLowerCase()),
-                country: new ObjectId(req.body.country),
-                resellid: new ObjectId(resellid),
-                upgradeType: "1",
-                upStatus: "Pending",
-              }
+              ? {
+                  name: req.body.name,
+                  email: req.body.email,
+                  slug: slugify(req.body.name.toString().toLowerCase()),
+                  country: new ObjectId(req.body.country),
+                  resellid: new ObjectId(resellid),
+                  upgradeType: "1",
+                  upStatus: "Pending",
+                  upPackage: new ObjectId(upPackage),
+                }
+              : {
+                  name: req.body.name,
+                  email: req.body.email,
+                  slug: slugify(req.body.name.toString().toLowerCase()),
+                  country: new ObjectId(req.body.country),
+                  resellid: new ObjectId(resellid),
+                  upgradeType: "1",
+                  upStatus: "Pending",
+                },
         );
         await estore.save();
 
@@ -361,7 +410,7 @@ exports.createEstore = async (req, res) => {
                 userLimit: 5,
                 invites: 1,
               },
-            }
+            },
           );
         }
 
@@ -382,7 +431,7 @@ exports.createEstore = async (req, res) => {
                       resellerType: reseller.resellerType,
                     }
                   : { resellerType: reseller.resellerType },
-            }
+            },
           );
           res.json(checkEmailExist);
         }
@@ -469,7 +518,7 @@ exports.copyingEstore = async (req, res) => {
         const products = await Product.find({
           estoreid: new ObjectId(fromid),
         }).select(
-          "-_id -discounttype -quantity -sold -createdAt -updatedAt -__v"
+          "-_id -discounttype -quantity -sold -createdAt -updatedAt -__v",
         );
 
         const copyingProducts = products.map((product) => {
@@ -509,7 +558,7 @@ exports.copyingEstore = async (req, res) => {
             await Product.updateMany(
               { category: new ObjectId(category._id), estoreid: estore._id },
               { category: new ObjectId(newCategory._id) },
-              { new: true }
+              { new: true },
             );
           });
 
@@ -528,7 +577,7 @@ exports.copyingEstore = async (req, res) => {
             await Product.updateMany(
               { brand: new ObjectId(brand._id), estoreid: estore._id },
               { brand: new ObjectId(newBrand._id) },
-              { new: true }
+              { new: true },
             );
           });
 
@@ -569,7 +618,7 @@ exports.updateEstoreCounters = async (req, res) => {
       },
       {
         new: true,
-      }
+      },
     ).exec();
     res.json(estore);
   } catch (error) {
@@ -589,7 +638,7 @@ exports.updateEstoresDefault = async (req, res) => {
       },
       {
         new: true,
-      }
+      },
     ).exec();
     res.json({ ok: true });
   } catch (error) {
@@ -643,7 +692,7 @@ exports.deletingEstore = async (req, res) => {
           estoreid: new ObjectId(deleteid),
           role: "admin",
         },
-        { $set: { estoreid: oldEstore._id } }
+        { $set: { estoreid: oldEstore._id } },
       ).exec();
 
       await MyCountry.deleteMany({ estoreid: new ObjectId(deleteid) });

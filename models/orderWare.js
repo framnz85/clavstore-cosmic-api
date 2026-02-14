@@ -84,6 +84,7 @@ const orderSchema = new mongoose.Schema(
         value: String,
       },
     ],
+    supplierid: ObjectId,
     supplier: String,
     billTo: String,
     shipTo: String,

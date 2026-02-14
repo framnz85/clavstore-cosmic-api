@@ -10,6 +10,7 @@ const {
   getEstoreCounters,
   getAllowedEstores,
   searchEstoreByText,
+  searchWarehouseByText,
   updateEstore,
   createEstore,
   addNewEstore,
@@ -36,19 +37,20 @@ router.get("/gratis/dedicated-estores", getDedicatedEstores);
 router.get("/gratis/estore-counters/:estoreid", getEstoreCounters);
 router.post("/gratis/allowed-estores", getAllowedEstores);
 router.post("/gratis/estore-by-id-text", searchEstoreByText);
+router.post("/gratis/warehouse-estores-search", searchWarehouseByText);
 router.post("/gratis/estore-update", authCheck, adminGratisCheck, updateEstore);
 router.post("/gratis/estore-create/:resellid", createEstore);
 router.post(
   "/gratis/add-new-estore/:resellid",
   authCheck,
   adminGratisCheck,
-  addNewEstore
+  addNewEstore,
 );
 router.post(
   "/gratis/copying-estore/:resellid",
   authCheck,
   adminGratisCheck,
-  copyingEstore
+  copyingEstore,
 );
 router.put("/gratis/update-estore-counters", updateEstoreCounters);
 router.put("/gratis/update-estores-default", updateEstoresDefault);
@@ -57,7 +59,7 @@ router.delete(
   "/gratis/delete-estore/:deleteid",
   authCheck,
   adminGratisCheck,
-  deletingEstore
+  deletingEstore,
 );
 
 module.exports = router;
