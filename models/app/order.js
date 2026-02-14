@@ -69,7 +69,7 @@ const orderSchema = new mongoose.Schema(
     createdBy: { type: ObjectId, ref: "GratisUser" },
     orderedBy: { type: ObjectId, ref: "GratisUser" },
     orderedName: String,
-    estoreid: ObjectId,
+    estoreid: { type: ObjectId, ref: "GratisEstore" },
     delAddress: String,
     orderNotes: String,
     customDetails: [
@@ -84,6 +84,7 @@ const orderSchema = new mongoose.Schema(
         value: String,
       },
     ],
+    supplierid: { type: ObjectId, ref: "GratisEstore" },
     supplier: String,
     billTo: String,
     shipTo: String,

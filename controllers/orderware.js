@@ -19,6 +19,7 @@ exports.adminWarehouseOrder = async (req, res) => {
       _id: new ObjectId(orderid),
       estoreid: Object(estoreid),
     })
+      .populate("estoreid", "_id name storeAddress")
       .populate("products.product")
       .populate("orderedBy")
       .populate("paymentOption")
@@ -91,6 +92,7 @@ exports.adminWarehouseOrders = async (req, res) => {
         .select(
           "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt",
         )
+        .populate("estoreid", "_id name storeAddress")
         .populate("orderedBy")
         .populate("paymentOption")
         .exec();
@@ -129,6 +131,7 @@ exports.adminWarehouseOrders = async (req, res) => {
         .select(
           "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt",
         )
+        .populate("estoreid", "_id name storeAddress")
         .populate("orderedBy")
         .populate("paymentOption")
         .exec();

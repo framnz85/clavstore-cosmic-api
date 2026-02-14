@@ -26,6 +26,7 @@ exports.userOrder = async (req, res) => {
         orderedBy: user._id,
         estoreid: Object(estoreid),
       })
+        .populate("estoreid", "_id name storeAddress")
         .populate("products.product")
         .populate("orderedBy")
         .populate("paymentOption")
@@ -52,6 +53,7 @@ exports.userAppOrder = async (req, res) => {
       _id: new ObjectId(orderid),
       estoreid: Object(estoreid),
     })
+      .populate("estoreid", "_id name storeAddress")
       .populate("products.product")
       .populate("orderedBy")
       .populate("paymentOption")
@@ -81,6 +83,7 @@ exports.adminOrder = async (req, res) => {
         ? { _id: new ObjectId(orderid), supplierid: Object(estoreid) }
         : { _id: new ObjectId(orderid), estoreid: Object(estoreid) },
     )
+      .populate("estoreid", "_id name storeAddress")
       .populate("products.product")
       .populate("orderedBy")
       .populate("paymentOption")
@@ -117,6 +120,7 @@ exports.userOrders = async (req, res) => {
         .skip((currentPage - 1) * pageSize)
         .sort({ [sortkey]: sort })
         .limit(pageSize)
+        .populate("estoreid", "_id name storeAddress")
         .populate("orderedBy", "_id")
         .populate("paymentOption", "bankName")
         .select(
@@ -198,6 +202,7 @@ exports.adminOrders = async (req, res) => {
         .select(
           "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt",
         )
+        .populate("estoreid", "_id name storeAddress")
         .populate("orderedBy")
         .populate("paymentOption")
         .exec();
@@ -241,6 +246,7 @@ exports.adminOrders = async (req, res) => {
           "_id orderCode orderedBy orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid delAddress duedate createdAt",
         )
         .populate("orderedBy")
+        .populate("estoreid", "_id name storeAddress")
         .populate("paymentOption")
         .exec();
     }
