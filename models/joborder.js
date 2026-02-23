@@ -61,6 +61,10 @@ const jobOrderSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    paymentOption: {
+      type: ObjectId,
+      ref: "GratisPayment",
+    },
     orderStatus: {
       type: String,
       default: "Not Processed",

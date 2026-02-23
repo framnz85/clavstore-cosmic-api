@@ -7,11 +7,13 @@ const User = require("../models/user");
 const Cart = require("../models/cart");
 const Product = require("../models/product");
 const Order = require("../models/order");
+const Cashflow = require("../models/cashflow");
 const {
   createRaffle,
   checkOrderedProd,
   updateOrderedProd,
 } = require("./common");
+const { createCashflowEntry } = require("./cashflow");
 
 exports.userOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
@@ -616,6 +618,81 @@ exports.updateCartPurchase = async (req, res) => {
   }
 };
 
+const cashFlowEntry = async (order, estoreid, user, orderType) => {
+  try {
+    const paymentOptionId =
+      order && order.paymentOption ? order.paymentOption : null;
+
+    const estore = await Estore.findById(estoreid)
+      .select("upStatus2 upgradeType")
+      .lean();
+
+    if (
+      paymentOptionId &&
+      ObjectId.isValid(paymentOptionId) &&
+      (!estore ||
+        String(estore.upStatus2 || "") !== "Active" ||
+        String(estore.upgradeType || "") !== "2")
+    ) {
+      return;
+    }
+
+    const cashflowAmount =
+      (order.cartTotal ? order.cartTotal : 0) +
+      (order.delfee ? order.delfee : 0) +
+      (order.servefee ? order.servefee : 0) -
+      (order.discount ? order.discount : 0) -
+      (order.addDiscount ? order.addDiscount : 0);
+    const orderCash = order && order.cash ? Number(order.cash) : 0;
+    const posCashPaid = orderType === "pos" && orderCash > 0;
+    const inflowAmount = posCashPaid ? orderCash : cashflowAmount;
+    const changeAmount = posCashPaid
+      ? Math.max(orderCash - cashflowAmount, 0)
+      : 0;
+
+    let finalBalanceInflow = inflowAmount;
+    let finalBalanceOutflow = 0;
+
+    const latestCashflowQuery = {
+      estoreid: new ObjectId(estoreid),
+      createdBy: new ObjectId(user._id),
+    };
+
+    if (paymentOptionId && ObjectId.isValid(paymentOptionId)) {
+      latestCashflowQuery.bankid = new ObjectId(paymentOptionId);
+    }
+
+    const latestCashflow = await Cashflow.findOne(latestCashflowQuery)
+      .sort({ date: -1, createdAt: -1 })
+      .select("balanceInflow balanceOutflow")
+      .lean();
+
+    const latestBalanceInflow = latestCashflow
+      ? parseFloat(latestCashflow.balanceInflow) || 0
+      : 0;
+    const latestBalanceOutflow = latestCashflow
+      ? parseFloat(latestCashflow.balanceOutflow) || 0
+      : 0;
+
+    finalBalanceInflow = latestBalanceInflow + inflowAmount;
+    finalBalanceOutflow = latestBalanceOutflow + changeAmount;
+
+    await createCashflowEntry({
+      estoreid,
+      createdBy: user._id,
+      type: orderType,
+      amount: cashflowAmount,
+      referenceid: order._id,
+      date: new Date(),
+      bankid: orderType === "web" ? paymentOptionId : null,
+      balanceInflow: finalBalanceInflow,
+      balanceOutflow: finalBalanceOutflow,
+    });
+  } catch (cashflowError) {
+    console.log("Create cashflow failed:", cashflowError.message);
+  }
+};
+
 exports.saveCartOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
@@ -698,7 +775,7 @@ exports.saveCartOrder = async (req, res) => {
         orderCode: cart._id.toString().slice(-12),
         orderType,
         products: cart.products,
-        paymentOption: new ObjectId(paymentOption),
+        paymentOption: paymentOption ? new ObjectId(paymentOption) : null,
         orderStatus:
           orderType === "pos"
             ? orderStatus === "Credit"
@@ -749,6 +826,8 @@ exports.saveCartOrder = async (req, res) => {
           await updateOrderedProd(order.products, estoreid, true);
 
           createRaffle(estoreid, user, order);
+
+          cashFlowEntry(order, estoreid, user, orderType);
         }
         if (
           orderType === "web" &&
@@ -1078,6 +1157,15 @@ exports.updateOrderStatus = async (req, res) => {
         );
         if (order) {
           res.json(order);
+
+          if (
+            (orderType === "web" || orderType === "pos") &&
+            orderStatus === "Completed" &&
+            orderForChecking &&
+            orderForChecking.orderStatus !== "Completed"
+          ) {
+            cashFlowEntry(order, estoreid, user, orderType);
+          }
 
           if (orderType === "web" && orderStatus === statusEstore) {
             await updateOrderedProd(order.products, estoreid, true);

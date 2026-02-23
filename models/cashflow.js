@@ -1,36 +1,49 @@
 const mongoose = require("mongoose");
+const { ObjectId } = mongoose.Schema;
 const conn = require("../dbconnect/gratis");
 
 const cashflowSchema = new mongoose.Schema(
   {
     estoreid: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Estore",
+      type: ObjectId,
+      ref: "GratisEstore",
       required: true,
     },
     type: {
       type: String,
-      enum: ["inflow", "outflow"],
+      enum: ["inflow", "outflow", "web", "pos", "jobs"],
+      required: true,
+    },
+    referenceid: {
+      type: ObjectId,
       required: true,
     },
     amount: {
       type: Number,
       required: true,
     },
-    description: {
-      type: String,
-      trim: true,
-    },
     date: {
       type: Date,
       required: true,
     },
+    bankid: {
+      type: ObjectId,
+      ref: "GratisPayment",
+    },
+    balanceInflow: {
+      type: Number,
+      default: 0,
+    },
+    balanceOutflow: {
+      type: Number,
+      default: 0,
+    },
     createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: ObjectId,
       ref: "User",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const Cashflow = conn.model("GratisCashflow", cashflowSchema);

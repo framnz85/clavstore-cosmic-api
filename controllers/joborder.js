@@ -1,5 +1,11 @@
 const ObjectId = require("mongoose").Types.ObjectId;
 const JobOrder = require("../models/joborder");
+const Cashflow = require("../models/cashflow");
+const Estore = require("../models/estore");
+const { createCashflowEntry } = require("./cashflow");
+
+const toObjectId = (value) =>
+  value && ObjectId.isValid(value) ? new ObjectId(value) : undefined;
 
 const normalizePrice = (price) => {
   if (price && typeof price === "object") return price.amount || 0;
@@ -19,6 +25,93 @@ const calculateTotalAmount = (jobs) => {
   }, 0);
 };
 
+const isCompletedStatus = (status) =>
+  status === "Complete" || status === "Completed";
+
+const cashFlowEntry = async (jobOrder, estoreid, createdBy) => {
+  try {
+    const paymentOptionId =
+      jobOrder && jobOrder.paymentOption ? jobOrder.paymentOption : null;
+
+    const estore = await Estore.findById(estoreid)
+      .select("upStatus2 upgradeType")
+      .lean();
+
+    if (
+      paymentOptionId &&
+      ObjectId.isValid(paymentOptionId) &&
+      (!estore ||
+        String(estore.upStatus2 || "") !== "Active" ||
+        String(estore.upgradeType || "") !== "2")
+    ) {
+      return;
+    }
+
+    const cashflowAmount =
+      jobOrder && jobOrder.totalAmount ? Number(jobOrder.totalAmount) : 0;
+    const orderCash = jobOrder && jobOrder.cash ? Number(jobOrder.cash) : 0;
+    const posCashPaid = orderCash > 0;
+    const inflowAmount = posCashPaid ? orderCash : cashflowAmount;
+    const changeAmount = posCashPaid
+      ? Math.max(orderCash - cashflowAmount, 0)
+      : 0;
+
+    let finalBalanceInflow = inflowAmount;
+    let finalBalanceOutflow = 0;
+
+    const latestCashflowQuery =
+      jobOrder.paymentOption && ObjectId.isValid(jobOrder.paymentOption)
+        ? {
+            estoreid: new ObjectId(estoreid),
+            bankid: new ObjectId(jobOrder.paymentOption),
+          }
+        : {
+            estoreid: new ObjectId(estoreid),
+            $or: [{ bankid: { $exists: false } }, { bankid: null }],
+          };
+
+    const latestCashflow = await Cashflow.findOne(latestCashflowQuery)
+      .sort({ date: -1, createdAt: -1 })
+      .select("balanceInflow balanceOutflow")
+      .lean();
+
+    const latestBalanceInflow = latestCashflow
+      ? parseFloat(latestCashflow.balanceInflow) || 0
+      : 0;
+    const latestBalanceOutflow = latestCashflow
+      ? parseFloat(latestCashflow.balanceOutflow) || 0
+      : 0;
+
+    finalBalanceInflow = latestBalanceInflow + inflowAmount;
+    finalBalanceOutflow = latestBalanceOutflow + changeAmount;
+
+    if (
+      ObjectId.isValid(estoreid) &&
+      ObjectId.isValid(jobOrder && jobOrder._id) &&
+      ObjectId.isValid(createdBy)
+    ) {
+      const bankId =
+        jobOrder && ObjectId.isValid(jobOrder.paymentOption)
+          ? new ObjectId(jobOrder.paymentOption)
+          : null;
+
+      await createCashflowEntry({
+        estoreid,
+        createdBy,
+        type: "jobs",
+        amount: cashflowAmount,
+        referenceid: jobOrder._id,
+        date: new Date(),
+        bankid: bankId,
+        balanceInflow: finalBalanceInflow,
+        balanceOutflow: finalBalanceOutflow,
+      });
+    }
+  } catch (cashflowError) {
+    console.log("Create cashflow failed:", cashflowError.message);
+  }
+};
+
 exports.createJobOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
   try {
@@ -32,19 +125,33 @@ exports.createJobOrder = async (req, res) => {
       date,
       dueDate,
       createdBy,
+      paymentOption,
       notes,
       orderStatus,
     } = req.body;
 
-    if (!customerId || !jobs || jobs.length === 0) {
+    if ((!customerId && !customerName) || !jobs || jobs.length === 0) {
       return res.status(400).json({
         message: "Customer and at least one job are required",
       });
     }
 
+    if (customerId && !ObjectId.isValid(customerId)) {
+      return res.status(400).json({ message: "Invalid customerId" });
+    }
+    if (createdBy && !ObjectId.isValid(createdBy)) {
+      return res.status(400).json({ message: "Invalid createdBy" });
+    }
+    if (paymentOption && !ObjectId.isValid(paymentOption)) {
+      return res.status(400).json({ message: "Invalid paymentOption" });
+    }
+    if (estoreid && !ObjectId.isValid(estoreid)) {
+      return res.status(400).json({ message: "Invalid estoreid" });
+    }
+
     // Normalize jobs array
     const normalizedJobs = jobs.map((job) => ({
-      jobId: job.jobId,
+      jobId: toObjectId(job.jobId),
       jobTitle: job.jobTitle || "",
       quantity: normalizeQuantity(job.quantity),
       price: normalizePrice(job.price),
@@ -65,8 +172,10 @@ exports.createJobOrder = async (req, res) => {
       orderStatus: orderStatus || "Not Processed",
       date,
       dueDate,
-      createdBy,
-      estoreid,
+      createdBy: toObjectId(createdBy),
+      paymentOption: toObjectId(paymentOption),
+      customerId: toObjectId(customerId),
+      estoreid: toObjectId(estoreid),
       notes,
     });
 
@@ -74,6 +183,7 @@ exports.createJobOrder = async (req, res) => {
     const populated = await JobOrder.findById(saved._id)
       .populate("customerId", "name email phone")
       .populate("jobs.jobId", "title uom price")
+      .populate("paymentOption", "bankName")
       .populate("createdBy", "name email");
 
     res.status(201).json({
@@ -91,14 +201,30 @@ exports.createJobOrder = async (req, res) => {
 exports.getAllJobOrders = async (req, res) => {
   const estoreid = req.headers.estoreid;
   try {
-    const { search, orderStatus, customerId, jobId } = req.query;
+    const { search, orderStatus, customerId, jobId, paymentOption } = req.query;
     const filter = {};
+
+    if (estoreid && !ObjectId.isValid(estoreid)) {
+      return res.status(400).json({ message: "Invalid estoreid" });
+    }
+    if (customerId && !ObjectId.isValid(customerId)) {
+      return res.status(400).json({ message: "Invalid customerId" });
+    }
+    if (jobId && !ObjectId.isValid(jobId)) {
+      return res.status(400).json({ message: "Invalid jobId" });
+    }
+    if (paymentOption && !ObjectId.isValid(paymentOption)) {
+      return res.status(400).json({ message: "Invalid paymentOption" });
+    }
 
     if (estoreid) filter.estoreid = new ObjectId(estoreid);
     if (orderStatus) filter.orderStatus = orderStatus;
     if (customerId) filter.customerId = new ObjectId(customerId);
     if (jobId) {
       filter["jobs.jobId"] = new ObjectId(jobId);
+    }
+    if (paymentOption) {
+      filter.paymentOption = new ObjectId(paymentOption);
     }
 
     let query = JobOrder.find(filter);
@@ -110,6 +236,7 @@ exports.getAllJobOrders = async (req, res) => {
     const jobOrders = await query
       .populate("customerId", "name email phone")
       .populate("jobs.jobId", "title uom price")
+      .populate("paymentOption", "bankName")
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
@@ -126,6 +253,12 @@ exports.getJobOrderById = async (req, res) => {
   const estoreid = req.headers.estoreid;
   try {
     const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
+    if (estoreid && !ObjectId.isValid(estoreid)) {
+      return res.status(400).json({ message: "Invalid estoreid" });
+    }
 
     const query = estoreid
       ? { _id: new ObjectId(id), estoreid: new ObjectId(estoreid) }
@@ -134,6 +267,7 @@ exports.getJobOrderById = async (req, res) => {
     const jobOrder = await JobOrder.findOne(query)
       .populate("customerId", "name email phone")
       .populate("jobs.jobId", "title uom price")
+      .populate("paymentOption", "bankName")
       .populate("createdBy", "name email");
 
     if (!jobOrder) {
@@ -149,14 +283,48 @@ exports.getJobOrderById = async (req, res) => {
 };
 
 exports.updateJobOrder = async (req, res) => {
+  const estoreid = req.headers.estoreid;
   try {
     const { id } = req.params;
     const updates = { ...req.body };
+    let shouldUnsetPaymentOption = false;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
+    if (estoreid && !ObjectId.isValid(estoreid)) {
+      return res.status(400).json({ message: "Invalid estoreid" });
+    }
+
+    if (updates.customerId !== undefined) {
+      if (updates.customerId && !ObjectId.isValid(updates.customerId)) {
+        return res.status(400).json({ message: "Invalid customerId" });
+      }
+      updates.customerId = toObjectId(updates.customerId);
+    }
+
+    if (updates.createdBy !== undefined) {
+      if (updates.createdBy && !ObjectId.isValid(updates.createdBy)) {
+        return res.status(400).json({ message: "Invalid createdBy" });
+      }
+      updates.createdBy = toObjectId(updates.createdBy);
+    }
+
+    if (updates.paymentOption !== undefined) {
+      if (ObjectId.isValid(updates.paymentOption)) {
+        updates.paymentOption = toObjectId(updates.paymentOption);
+      } else {
+        shouldUnsetPaymentOption = true;
+        delete updates.paymentOption;
+      }
+    } else {
+      shouldUnsetPaymentOption = true;
+      delete updates.paymentOption;
+    }
 
     // If jobs array is provided, normalize it and recalculate total
     if (updates.jobs && Array.isArray(updates.jobs)) {
       updates.jobs = updates.jobs.map((job) => ({
-        jobId: job.jobId,
+        jobId: toObjectId(job.jobId),
         jobTitle: job.jobTitle || "",
         quantity: normalizeQuantity(job.quantity),
         price: normalizePrice(job.price),
@@ -166,16 +334,48 @@ exports.updateJobOrder = async (req, res) => {
       updates.totalAmount = calculateTotalAmount(updates.jobs);
     }
 
-    const jobOrder = await JobOrder.findByIdAndUpdate(id, updates, {
+    const query = {
+      _id: new ObjectId(id),
+      ...(estoreid ? { estoreid: new ObjectId(estoreid) } : {}),
+    };
+
+    const existingJobOrder = await JobOrder.findOne(query)
+      .select("orderStatus createdBy estoreid")
+      .lean();
+
+    if (!existingJobOrder) {
+      return res.status(404).json({ message: "Job order not found" });
+    }
+
+    const updatePayload = {};
+    if (Object.keys(updates).length > 0) {
+      updatePayload.$set = updates;
+    }
+    if (shouldUnsetPaymentOption) {
+      updatePayload.$unset = { paymentOption: "" };
+    }
+
+    const jobOrder = await JobOrder.findOneAndUpdate(query, updatePayload, {
       new: true,
       runValidators: true,
     })
       .populate("customerId", "name email phone")
       .populate("jobs.jobId", "title uom price")
+      .populate("paymentOption", "bankName")
       .populate("createdBy", "name email");
 
-    if (!jobOrder) {
-      return res.status(404).json({ message: "Job order not found" });
+    const updatedStatus = updates.orderStatus || jobOrder.orderStatus;
+    const wasCompleted = isCompletedStatus(existingJobOrder.orderStatus);
+    const isNowCompleted = isCompletedStatus(updatedStatus);
+
+    if (isNowCompleted && !wasCompleted) {
+      await cashFlowEntry(
+        jobOrder,
+        estoreid || jobOrder.estoreid,
+        updates.createdBy ||
+          jobOrder.createdBy?._id ||
+          existingJobOrder.createdBy,
+      );
     }
 
     res.status(200).json(jobOrder);
@@ -188,9 +388,20 @@ exports.updateJobOrder = async (req, res) => {
 };
 
 exports.deleteJobOrder = async (req, res) => {
+  const estoreid = req.headers.estoreid;
   try {
     const { id } = req.params;
-    const jobOrder = await JobOrder.findByIdAndDelete(id);
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
+    if (estoreid && !ObjectId.isValid(estoreid)) {
+      return res.status(400).json({ message: "Invalid estoreid" });
+    }
+
+    const jobOrder = await JobOrder.findOneAndDelete({
+      _id: new ObjectId(id),
+      ...(estoreid ? { estoreid: new ObjectId(estoreid) } : {}),
+    });
 
     if (!jobOrder) {
       return res.status(404).json({ message: "Job order not found" });
@@ -207,6 +418,7 @@ exports.deleteJobOrder = async (req, res) => {
 
 // Add a job to existing job order
 exports.addJobToOrder = async (req, res) => {
+  const estoreid = req.headers.estoreid;
   try {
     const { id } = req.params;
     const { jobId, jobTitle, quantity, price, status, notes } = req.body;
@@ -214,9 +426,15 @@ exports.addJobToOrder = async (req, res) => {
     if (!jobId) {
       return res.status(400).json({ message: "Job ID is required" });
     }
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
+    if (estoreid && !ObjectId.isValid(estoreid)) {
+      return res.status(400).json({ message: "Invalid estoreid" });
+    }
 
     const newJob = {
-      jobId,
+      jobId: toObjectId(jobId),
       jobTitle: jobTitle || "",
       quantity: normalizeQuantity(quantity),
       price: normalizePrice(price),
@@ -224,8 +442,13 @@ exports.addJobToOrder = async (req, res) => {
       notes: notes || "",
     };
 
-    const jobOrder = await JobOrder.findByIdAndUpdate(
-      id,
+    const query = {
+      _id: new ObjectId(id),
+      ...(estoreid ? { estoreid: new ObjectId(estoreid) } : {}),
+    };
+
+    const jobOrder = await JobOrder.findOneAndUpdate(
+      query,
       {
         $push: { jobs: newJob },
       },
@@ -243,6 +466,7 @@ exports.addJobToOrder = async (req, res) => {
     const populated = await JobOrder.findById(id)
       .populate("customerId", "name email phone")
       .populate("jobs.jobId", "title uom price")
+      .populate("paymentOption", "bankName")
       .populate("createdBy", "name email");
 
     res.status(200).json({
@@ -259,10 +483,20 @@ exports.addJobToOrder = async (req, res) => {
 
 // Remove a job from job order
 exports.removeJobFromOrder = async (req, res) => {
+  const estoreid = req.headers.estoreid;
   try {
     const { id, jobIndex } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
+    if (estoreid && !ObjectId.isValid(estoreid)) {
+      return res.status(400).json({ message: "Invalid estoreid" });
+    }
 
-    const jobOrder = await JobOrder.findById(id);
+    const jobOrder = await JobOrder.findOne({
+      _id: new ObjectId(id),
+      ...(estoreid ? { estoreid: new ObjectId(estoreid) } : {}),
+    });
 
     if (!jobOrder) {
       return res.status(404).json({ message: "Job order not found" });
@@ -287,6 +521,7 @@ exports.removeJobFromOrder = async (req, res) => {
     const populated = await JobOrder.findById(id)
       .populate("customerId", "name email phone")
       .populate("jobs.jobId", "title uom price")
+      .populate("paymentOption", "bankName")
       .populate("createdBy", "name email");
 
     res.status(200).json({
@@ -303,11 +538,21 @@ exports.removeJobFromOrder = async (req, res) => {
 
 // Update a specific job within an order
 exports.updateJobInOrder = async (req, res) => {
+  const estoreid = req.headers.estoreid;
   try {
     const { id, jobIndex } = req.params;
     const { jobId, jobTitle, quantity, price, status, notes } = req.body;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
+    if (estoreid && !ObjectId.isValid(estoreid)) {
+      return res.status(400).json({ message: "Invalid estoreid" });
+    }
 
-    const jobOrder = await JobOrder.findById(id);
+    const jobOrder = await JobOrder.findOne({
+      _id: new ObjectId(id),
+      ...(estoreid ? { estoreid: new ObjectId(estoreid) } : {}),
+    });
 
     if (!jobOrder) {
       return res.status(404).json({ message: "Job order not found" });
@@ -319,7 +564,7 @@ exports.updateJobInOrder = async (req, res) => {
     }
 
     // Update only provided fields
-    if (jobId !== undefined) jobOrder.jobs[index].jobId = jobId;
+    if (jobId !== undefined) jobOrder.jobs[index].jobId = toObjectId(jobId);
     if (jobTitle !== undefined) jobOrder.jobs[index].jobTitle = jobTitle;
     if (quantity !== undefined)
       jobOrder.jobs[index].quantity = normalizeQuantity(quantity);
@@ -333,6 +578,7 @@ exports.updateJobInOrder = async (req, res) => {
     const populated = await JobOrder.findById(id)
       .populate("customerId", "name email phone")
       .populate("jobs.jobId", "title uom price")
+      .populate("paymentOption", "bankName")
       .populate("createdBy", "name email");
 
     res.status(200).json({

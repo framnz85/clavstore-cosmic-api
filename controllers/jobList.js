@@ -36,9 +36,10 @@ exports.createJobList = async (req, res) => {
 };
 
 exports.getAllJobLists = async (req, res) => {
+  const estoreid = req.headers.estoreid;
   try {
     const { search, isActive } = req.query;
-    let filter = {};
+    let filter = { estoreid: new ObjectId(estoreid) };
 
     if (isActive !== undefined) filter.isActive = isActive === "true";
 
@@ -60,12 +61,13 @@ exports.getAllJobLists = async (req, res) => {
 };
 
 exports.getJobListById = async (req, res) => {
+  const estoreid = req.headers.estoreid;
   try {
     const { id } = req.params;
-    const jobList = await JobList.findById(id).populate(
-      "createdBy",
-      "name email",
-    );
+    const jobList = await JobList.findOne({
+      _id: new ObjectId(id),
+      estoreid: new ObjectId(estoreid),
+    }).populate("createdBy", "name email");
 
     if (!jobList) {
       return res.status(404).json({ message: "Job list not found" });
@@ -80,6 +82,7 @@ exports.getJobListById = async (req, res) => {
 };
 
 exports.updateJobList = async (req, res) => {
+  const estoreid = req.headers.estoreid;
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -91,10 +94,17 @@ exports.updateJobList = async (req, res) => {
     if (updates.price && typeof updates.price === "object")
       updates.price = updates.price.amount || 0;
 
-    const jobList = await JobList.findByIdAndUpdate(id, updates, {
-      new: true,
-      runValidators: true,
-    }).populate("createdBy", "name email");
+    const jobList = await JobList.findOneAndUpdate(
+      {
+        _id: new ObjectId(id),
+        estoreid: new ObjectId(estoreid),
+      },
+      updates,
+      {
+        new: true,
+        runValidators: true,
+      },
+    ).populate("createdBy", "name email");
 
     if (!jobList) {
       return res.status(404).json({ message: "Job list not found" });
@@ -109,9 +119,13 @@ exports.updateJobList = async (req, res) => {
 };
 
 exports.deleteJobList = async (req, res) => {
+  const estoreid = req.headers.estoreid;
   try {
     const { id } = req.params;
-    const jobList = await JobList.findByIdAndDelete(id);
+    const jobList = await JobList.findOneAndDelete({
+      _id: new ObjectId(id),
+      estoreid: new ObjectId(estoreid),
+    });
 
     if (!jobList) {
       return res.status(404).json({ message: "Job list not found" });
