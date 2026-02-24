@@ -27,6 +27,10 @@ const estoreSchema = new mongoose.Schema(
       default: "active",
       enum: ["pending", "pause", "stop", "active"],
     },
+    enableCashflow: {
+      type: Boolean,
+      default: false,
+    },
     country: {
       type: ObjectId,
       ref: Country,

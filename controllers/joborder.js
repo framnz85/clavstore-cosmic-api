@@ -34,8 +34,10 @@ const cashFlowEntry = async (jobOrder, estoreid, createdBy) => {
       jobOrder && jobOrder.paymentOption ? jobOrder.paymentOption : null;
 
     const estore = await Estore.findById(estoreid)
-      .select("upStatus2 upgradeType")
+      .select("upStatus2 upgradeType enableCashflow")
       .lean();
+
+    if (!estore.enableCashflow) return;
 
     if (
       paymentOptionId &&
@@ -63,10 +65,12 @@ const cashFlowEntry = async (jobOrder, estoreid, createdBy) => {
       jobOrder.paymentOption && ObjectId.isValid(jobOrder.paymentOption)
         ? {
             estoreid: new ObjectId(estoreid),
+            createdBy: new ObjectId(createdBy),
             bankid: new ObjectId(jobOrder.paymentOption),
           }
         : {
             estoreid: new ObjectId(estoreid),
+            createdBy: new ObjectId(createdBy),
             $or: [{ bankid: { $exists: false } }, { bankid: null }],
           };
 

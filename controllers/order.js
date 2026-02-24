@@ -624,8 +624,10 @@ const cashFlowEntry = async (order, estoreid, user, orderType) => {
       order && order.paymentOption ? order.paymentOption : null;
 
     const estore = await Estore.findById(estoreid)
-      .select("upStatus2 upgradeType")
+      .select("upStatus2 upgradeType enableCashflow")
       .lean();
+
+    if (!estore.enableCashflow) return;
 
     if (
       paymentOptionId &&
@@ -660,6 +662,11 @@ const cashFlowEntry = async (order, estoreid, user, orderType) => {
 
     if (paymentOptionId && ObjectId.isValid(paymentOptionId)) {
       latestCashflowQuery.bankid = new ObjectId(paymentOptionId);
+    } else {
+      latestCashflowQuery.$or = [
+        { bankid: { $exists: false } },
+        { bankid: null },
+      ];
     }
 
     const latestCashflow = await Cashflow.findOne(latestCashflowQuery)
@@ -684,7 +691,7 @@ const cashFlowEntry = async (order, estoreid, user, orderType) => {
       amount: cashflowAmount,
       referenceid: order._id,
       date: new Date(),
-      bankid: orderType === "web" ? paymentOptionId : null,
+      bankid: paymentOptionId ? paymentOptionId : null,
       balanceInflow: finalBalanceInflow,
       balanceOutflow: finalBalanceOutflow,
     });
@@ -827,7 +834,8 @@ exports.saveCartOrder = async (req, res) => {
 
           createRaffle(estoreid, user, order);
 
-          cashFlowEntry(order, estoreid, user, orderType);
+          order.orderStatus === "Completed" &&
+            cashFlowEntry(order, estoreid, user, orderType);
         }
         if (
           orderType === "web" &&
