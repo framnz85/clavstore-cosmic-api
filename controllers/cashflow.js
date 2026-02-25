@@ -3,6 +3,11 @@ const ObjectId = require("mongoose").Types.ObjectId;
 const Cashflow = require("../models/cashflow");
 const User = require("../models/user");
 
+const normalizeDescription = (description) => {
+  if (description === undefined || description === null) return undefined;
+  return String(description).trim();
+};
+
 const createCashflowEntry = async ({
   estoreid,
   createdBy,
@@ -13,6 +18,7 @@ const createCashflowEntry = async ({
   bankid,
   balanceInflow,
   balanceOutflow,
+  description,
 }) => {
   if (!ObjectId.isValid(estoreid)) {
     throw new Error("Invalid estoreid");
@@ -34,6 +40,7 @@ const createCashflowEntry = async ({
     type,
     referenceid: new ObjectId(referenceid),
     amount,
+    description: normalizeDescription(description),
     date: date || new Date(),
     bankid: bankid ? new ObjectId(bankid) : undefined,
     balanceInflow,
@@ -54,6 +61,7 @@ const buildCashflowPayload = (body = {}) => ({
   bankid: body.bankid,
   balanceInflow: body.balanceInflow,
   balanceOutflow: body.balanceOutflow,
+  description: normalizeDescription(body.description),
 });
 
 // Create Cashflow

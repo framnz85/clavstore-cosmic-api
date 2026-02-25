@@ -14,6 +14,9 @@ const cashflowSchema = new mongoose.Schema(
       enum: ["inflow", "outflow", "web", "pos", "jobs"],
       required: true,
     },
+    description: {
+      type: String,
+    },
     referenceid: {
       type: ObjectId,
       required: true,
