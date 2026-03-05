@@ -5,6 +5,11 @@ const Country = require("./country");
 
 const estoreSchema = new mongoose.Schema(
   {
+    storeType: {
+      type: String,
+      default: "store",
+      enum: ["store", "warehouse"],
+    },
     name: {
       type: String,
       required: true,
@@ -20,7 +25,6 @@ const estoreSchema = new mongoose.Schema(
       type: String,
       unique: true,
       lowercase: true,
-      index: true,
     },
     status: {
       type: String,
@@ -94,6 +98,10 @@ const estoreSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    jobsChange: {
+      type: Number,
+      default: 0,
+    },
     invites: {
       type: Number,
       default: 0,
@@ -104,6 +112,9 @@ const estoreSchema = new mongoose.Schema(
     },
     storeDescription: String,
     storeAddress: String,
+    supplier: String,
+    billTo: String,
+    shipTo: String,
     storeContact: String,
     locationType: {
       type: String,
@@ -161,7 +172,7 @@ const estoreSchema = new mongoose.Schema(
     },
     scannerType: {
       type: String,
-      enum: ["webcam", "barScan"],
+      enum: ["webcam1", "webcam2", "barScan"],
     },
     billingHistory: [
       {
@@ -230,6 +241,7 @@ const estoreSchema = new mongoose.Schema(
     resellid: ObjectId,
     showInApp: { type: Boolean, default: false },
     showInList: { type: Boolean, default: false },
+    hideToCustomers: { type: Boolean, default: false },
     webHomepage: {
       type: String,
       enum: ["Home", "Stores", "Random"],
@@ -280,6 +292,7 @@ const estoreSchema = new mongoose.Schema(
           "location",
           "product",
           "products",
+          "jobs",
           "sales",
           "inventory",
           "users",
@@ -310,6 +323,7 @@ const estoreSchema = new mongoose.Schema(
           "location",
           "product",
           "products",
+          "jobs",
           "sales",
           "inventory",
           "users",
@@ -356,6 +370,15 @@ const estoreSchema = new mongoose.Schema(
         link: String,
       },
     ],
+    orderInitStat: {
+      type: String,
+      default: "Not Processed",
+      enum: ["Not Processed", "Waiting Payment", "Processing"],
+    },
+    orderInitRemarks: {
+      type: String,
+      default: "Order was created.",
+    },
     orderStatus: {
       type: String,
       default: "Delivering",
@@ -410,6 +433,8 @@ const estoreSchema = new mongoose.Schema(
     },
     domain: String,
     subdomain: String,
+    indexing: { type: Boolean, default: false },
+    branchStore: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

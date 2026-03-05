@@ -30,7 +30,7 @@ router.get("/gratis/estore/:slug", getEstore);
 router.get("/gratis/default-estore", getDefaultEstore);
 router.get("/gratis/reseller/:id", getReseller);
 router.get("/gratis/get-package/:id/:packid", getPackage);
-router.get("/gratis/get-super-package/:id/:packid", getSuperPackage);
+router.get("/gratis/get-super-package/:id/:packid/:branchid", getSuperPackage);
 router.get("/gratis/get-packages/:packDefault", getPackages);
 router.get("/gratis/get-super-packages/:packDefault", getSuperPackages);
 router.get("/gratis/dedicated-estores", getDedicatedEstores);

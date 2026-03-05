@@ -1007,6 +1007,14 @@ const removeUpdates = async (
   orderStatus,
   products,
 ) => {
+  if (
+    statusEstore === "For Purchase" ||
+    statusEstore === "Purchased" ||
+    statusEstore === "Received"
+  ) {
+    return;
+  }
+
   if (statusEstore === "Not Processed") {
     if (orderType === "void") {
       await updateOrderedProd(products, estoreid, true);

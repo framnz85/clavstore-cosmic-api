@@ -69,7 +69,7 @@ exports.getHostingSuperBill = async (req, res) => {
     }
     futureDate = new Date();
     const payDeadline = new Date(
-      futureDate.setDate(futureDate.getDate() + deadDuration)
+      futureDate.setDate(futureDate.getDate() + deadDuration),
     ).toLocaleString("en-us", {
       year: "numeric",
       month: "numeric",
@@ -77,7 +77,7 @@ exports.getHostingSuperBill = async (req, res) => {
     });
     futureDate = new Date();
     const billDeadline = new Date(
-      futureDate.setDate(futureDate.getDate() + deadDuration + 31)
+      futureDate.setDate(futureDate.getDate() + deadDuration + 31),
     ).toLocaleString("en-us", {
       year: "numeric",
       month: "numeric",
@@ -144,6 +144,7 @@ exports.getSuperPayment = async (req, res) => {
 
 exports.getSuperPackage = async (req, res) => {
   const id = req.params.id;
+  const branchid = req.params.branchid;
   const packid = req.params.packid;
   let package = {};
 
@@ -160,7 +161,7 @@ exports.getSuperPackage = async (req, res) => {
     }
     if (package) {
       const estore = await Estore.findOne({
-        _id: new ObjectId(id),
+        _id: new ObjectId(branchid),
       })
         .populate("country")
         .exec();
