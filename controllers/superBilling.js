@@ -5,6 +5,7 @@ const Estore = require("../models/superEstore");
 const User = require("../models/user");
 const Package = require("../models/superPackage");
 const Payment = require("../models/superPayment");
+const EstoreNormal = require("../models/estore");
 
 exports.latestSuperBill = async (req, res) => {
   const estoreid = req.headers.estoreid;
@@ -160,7 +161,7 @@ exports.getSuperPackage = async (req, res) => {
       }).exec();
     }
     if (package) {
-      const estore = await Estore.findOne({
+      const estore = await EstoreNormal.findOne({
         _id: new ObjectId(branchid),
       })
         .populate("country")
