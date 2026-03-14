@@ -258,7 +258,7 @@ exports.saveOrder = async (req, res) => {
             estoreid: new ObjectId(estoreid),
           },
           { orderCode: order._id.toString().slice(-12) },
-          { new: true }
+          { new: true },
         );
 
         await updateOrderedProd(order.products, estoreid, true);
@@ -284,7 +284,7 @@ exports.saveOrder = async (req, res) => {
             productChange: new Date().valueOf(),
             orderChange: new Date().valueOf(),
           },
-          { new: true }
+          { new: true },
         );
 
         res.json({ order: updatedOrder, newProducts });
@@ -316,7 +316,7 @@ exports.submitEditOrder = async (req, res) => {
           products,
           cartTotal,
         },
-        { new: true }
+        { new: true },
       );
 
       await Estore.findOneAndUpdate(
@@ -324,7 +324,7 @@ exports.submitEditOrder = async (req, res) => {
           _id: new ObjectId(estoreid),
         },
         { orderChange: new Date().valueOf() },
-        { new: true }
+        { new: true },
       );
 
       res.json({ ok: true });
@@ -426,7 +426,7 @@ exports.sendOrder = async (req, res) => {
           orderNotes,
           products,
         },
-        { new: true }
+        { new: true },
       );
     } else {
       const newOrder = new Order({
@@ -492,7 +492,7 @@ exports.updateOrder = async (req, res) => {
         estoreid: new ObjectId(estoreid),
       },
       { orderStatus, statusHistory },
-      { new: true }
+      { new: true },
     );
 
     await Estore.findOneAndUpdate(
@@ -500,7 +500,7 @@ exports.updateOrder = async (req, res) => {
         _id: new ObjectId(estoreid),
       },
       { orderChange: new Date().valueOf() },
-      { new: true }
+      { new: true },
     );
 
     res.json(updatedOrder);
@@ -528,10 +528,14 @@ exports.deleteOrder = async (req, res) => {
           _id: new ObjectId(estoreid),
         },
         { orderChange: new Date().valueOf() },
-        { new: true }
+        { new: true },
       );
 
-      res.json(order);
+      if (order) {
+        res.json(order);
+      } else {
+        res.json({ err: "Order not found." });
+      }
     } else {
       res.json({ err: "Cannot delete the order." });
     }
