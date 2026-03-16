@@ -527,6 +527,7 @@ exports.updateProduct = async (req, res) => {
 
     const countProduct = await Product.countDocuments({
       aiIndex: true,
+      estoreid: new ObjectId(estoreid),
     }).exec();
 
     if (
