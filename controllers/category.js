@@ -123,7 +123,7 @@ exports.updateCategory = async (req, res) => {
       values,
       {
         new: true,
-      }
+      },
     ).exec();
 
     const countProduct = await Product.find({
@@ -149,7 +149,7 @@ exports.importCategories = async (req, res) => {
             estoreid: new ObjectId(estoreid),
           },
           categories[i],
-          { new: true }
+          { new: true },
         );
       } else {
         const checkExist = await Category.findOne({
@@ -163,11 +163,21 @@ exports.importCategories = async (req, res) => {
               estoreid: new ObjectId(estoreid),
             },
             categories[i],
-            { new: true }
+            { new: true },
           );
         } else {
           const category = new Category({
             ...categories[i],
+            images: categories[i].images
+              ? categories[i].images.map((img) => {
+                  return {
+                    ...img,
+                    sourceid: img.sourceid ? img.sourceid : "",
+                    fromid: img.fromid ? img.fromid : "",
+                    copied: true,
+                  };
+                })
+              : [],
             slug: slugify(categories[i].name.toString().toLowerCase()),
             estoreid: new ObjectId(estoreid),
           });

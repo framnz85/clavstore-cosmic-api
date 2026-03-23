@@ -166,7 +166,12 @@ exports.loadInitProducts = async (req, res) => {
 
       const copyingProducts = products.slice(0, count).map((product) => {
         const images = product.images.map((img) => {
-          return { ...img, fromid: estoreidFrom };
+          return {
+            ...img,
+            sourceid: estoreidFrom,
+            fromid: estoreidFrom,
+            copied: true,
+          };
         });
         return { ...product._doc, images, estoreid };
       });
@@ -183,7 +188,12 @@ exports.loadInitProducts = async (req, res) => {
 
         categories.forEach(async (category) => {
           const images = category.images.map((img) => {
-            return { ...img, fromid: estoreidFrom };
+            return {
+              ...img,
+              sourceid: estoreidFrom,
+              fromid: estoreidFrom,
+              copied: true,
+            };
           });
           const newCategory = new Category({
             name: category.name,
@@ -734,6 +744,16 @@ exports.importProducts = async (req, res) => {
         } else {
           const product = new Product({
             ...products[i],
+            images: products[i].images
+              ? products[i].images.map((img) => {
+                  return {
+                    ...img,
+                    sourceid: img.sourceid ? img.sourceid : "",
+                    fromid: img.fromid ? img.fromid : "",
+                    copied: true,
+                  };
+                })
+              : [],
             slug: slugify(products[i].title.toString().toLowerCase()),
             estoreid: new ObjectId(estoreid),
           });

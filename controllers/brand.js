@@ -122,7 +122,7 @@ exports.updateBrand = async (req, res) => {
       values,
       {
         new: true,
-      }
+      },
     ).exec();
 
     const countProduct = await Product.find({
@@ -148,7 +148,7 @@ exports.importBrands = async (req, res) => {
             estoreid: new ObjectId(estoreid),
           },
           brands[i],
-          { new: true }
+          { new: true },
         );
       } else {
         const checkExist = await Brand.findOne({
@@ -162,11 +162,21 @@ exports.importBrands = async (req, res) => {
               estoreid: new ObjectId(estoreid),
             },
             brands[i],
-            { new: true }
+            { new: true },
           );
         } else {
           const brand = new Brand({
             ...brands[i],
+            images: brands[i].images
+              ? brands[i].images.map((img) => {
+                  return {
+                    ...img,
+                    sourceid: img.sourceid ? img.sourceid : "",
+                    fromid: img.fromid ? img.fromid : "",
+                    copied: true,
+                  };
+                })
+              : [],
             slug: slugify(brands[i].name.toString().toLowerCase()),
             estoreid: new ObjectId(estoreid),
           });
