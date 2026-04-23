@@ -85,8 +85,9 @@ const userSchema = new mongoose.Schema(
       default: "server1",
       enum: ["server1", "server2", "server3", "server4", "server5"],
     },
+    promoStart: Date,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 userSchema.index(
@@ -103,7 +104,7 @@ userSchema.index(
       phone: 2,
       address: 1,
     },
-  }
+  },
 );
 
 const User = conn.model("GratisUser", userSchema);

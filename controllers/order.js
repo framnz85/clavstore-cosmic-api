@@ -1213,20 +1213,34 @@ exports.updateOrderStatus = async (req, res) => {
 exports.updatePaidOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
-  const { orderid, orderStatus, statusHistory } = req.body;
+  const { orderid, orderStatus, statusHistory, creditHistory, cash } = req.body;
 
   try {
     const user = await User.findOne({ email }).exec();
     if (user) {
+      const updatePayload = {
+        orderStatus,
+        statusHistory,
+      };
+
+      if (Array.isArray(creditHistory)) {
+        updatePayload.creditHistory = creditHistory.map((entry) => ({
+          amount: Number(entry?.amount) || 0,
+          remarks: entry?.remarks || "",
+          date: entry?.date ? new Date(entry.date) : new Date(),
+        }));
+      }
+
+      if (cash !== undefined) {
+        updatePayload.cash = Number(cash) || 0;
+      }
+
       const order = await Order.findOneAndUpdate(
         {
           _id: new ObjectId(orderid),
           estoreid: Object(estoreid),
         },
-        {
-          orderStatus,
-          statusHistory,
-        },
+        updatePayload,
         { new: true },
       );
       if (order) {

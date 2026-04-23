@@ -88,6 +88,7 @@ const orderSchema = new mongoose.Schema(
     supplier: String,
     billTo: String,
     shipTo: String,
+    creditHistory: [{ amount: Number, remarks: String, date: Date }],
   },
   { timestamps: true },
 );
