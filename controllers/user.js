@@ -51,9 +51,34 @@ exports.getUserDetails = async (req, res) => {
   let wishlist = [];
   let addiv3 = {};
 
+  const ensurePromoStart = async (userData) => {
+    if (!userData) return userData;
+
+    const hasPromoStart = userData.promoStart || userData._doc?.promoStart;
+    if (hasPromoStart) return userData;
+
+    const today = new Date();
+    const userId = userData._id || userData._doc?._id;
+
+    if (userId) {
+      await User.updateOne(
+        { _id: new ObjectId(userId) },
+        { $set: { promoStart: today } },
+      ).exec();
+    }
+
+    if (userData._doc) {
+      userData._doc.promoStart = today;
+    } else {
+      userData.promoStart = today;
+    }
+
+    return userData;
+  };
+
   try {
     const accountCounts = await getAccountCounts(estoreid);
-    const user = await User.findOne({
+    let user = await User.findOne({
       email,
       estoreid: new ObjectId(estoreid),
       resellid: new ObjectId(resellid),
@@ -67,6 +92,7 @@ exports.getUserDetails = async (req, res) => {
       .select("-password -showPass -verifyCode")
       .exec();
     if (user) {
+      user = await ensurePromoStart(user);
       if (user.wishlist && user.wishlist.length > 0) {
         wishlist = await populateWishlist(user.wishlist, estoreid);
       }
@@ -107,16 +133,17 @@ exports.getUserDetails = async (req, res) => {
           {
             email,
           },
-          { $set: { estoreid: oldEstore._id } }
+          { $set: { estoreid: oldEstore._id } },
         ).exec();
         userWithReseller = { ...userWithReseller, estoreid: oldEstore };
       }
 
       if (userWithReseller) {
+        userWithReseller = await ensurePromoStart(userWithReseller);
         if (userWithReseller.wishlist && userWithReseller.wishlist.length > 0) {
           wishlist = await populateWishlist(
             userWithReseller.wishlist,
-            estoreid
+            estoreid,
           );
         }
         if (
@@ -126,7 +153,7 @@ exports.getUserDetails = async (req, res) => {
         ) {
           addiv3 = await populateAddress(
             userWithReseller.address.addiv3,
-            estoreid
+            estoreid,
           );
           res.json({
             ...userWithReseller._doc,
@@ -138,7 +165,7 @@ exports.getUserDetails = async (req, res) => {
           res.json({ ...userWithReseller._doc, wishlist, accountCounts });
         }
       } else {
-        const userWithEmail = await User.findOne({
+        let userWithEmail = await User.findOne({
           email,
           estoreid: new ObjectId(estoreid),
         })
@@ -151,6 +178,7 @@ exports.getUserDetails = async (req, res) => {
           .select("-password -showPass -verifyCode")
           .exec();
         if (userWithEmail) {
+          userWithEmail = await ensurePromoStart(userWithEmail);
           if (userWithEmail.wishlist && userWithEmail.wishlist.length > 0) {
             wishlist = await populateWishlist(userWithEmail.wishlist, estoreid);
           }
@@ -161,7 +189,7 @@ exports.getUserDetails = async (req, res) => {
           ) {
             addiv3 = await populateAddress(
               userWithEmail.address.addiv3,
-              estoreid
+              estoreid,
             );
             res.json({
               ...userWithEmail._doc,
@@ -373,12 +401,12 @@ exports.createNewUser = async (req, res) => {
               address: req.body.address,
               estoreid: new ObjectId(estoreid),
               resellid: new ObjectId(resellid),
-            }
+            },
       );
       await user.save();
       const token = jwt.sign(
         { email: req.body.email },
-        process.env.JWT_PRIVATE_KEY
+        process.env.JWT_PRIVATE_KEY,
       );
 
       let refUser = {};
@@ -429,7 +457,7 @@ exports.sendEmail = async (req, res) => {
     },
     function (error) {
       res.json({ err: "Sending welcome email fails. " + error.message });
-    }
+    },
   );
 };
 
@@ -444,7 +472,7 @@ exports.addToWishlist = async (req, res) => {
       { $addToSet: { wishlist: prodid } },
       {
         new: true,
-      }
+      },
     );
 
     const wishlist = await populateWishlist(user.wishlist, estoreid);
@@ -487,7 +515,7 @@ exports.updateUser = async (req, res) => {
       objValues,
       {
         new: true,
-      }
+      },
     )
       .populate({
         path: "estoreid",
@@ -522,7 +550,7 @@ exports.updateCustomer = async (req, res) => {
         req.body,
         {
           new: true,
-        }
+        },
       );
     }
 
@@ -543,7 +571,7 @@ exports.verifyUserEmail = async (req, res) => {
       { verifyCode: "", emailConfirm: true },
       {
         new: true,
-      }
+      },
     )
       .populate({
         path: "estoreid",
@@ -559,7 +587,7 @@ exports.verifyUserEmail = async (req, res) => {
           { status: "active" },
           {
             new: true,
-          }
+          },
         );
       }
       res.json(user);
@@ -589,7 +617,7 @@ exports.changePassword = async (req, res) => {
       {
         password: md5(newpassword),
       },
-      { new: true }
+      { new: true },
     );
     if (user) {
       res.json(user);
@@ -614,7 +642,7 @@ exports.resetPassword = async (req, res) => {
       {
         password: md5("Grocery@2000"),
       },
-      { new: true }
+      { new: true },
     );
     res.json(user);
   } catch (error) {
@@ -638,7 +666,7 @@ exports.forgotPassword = async (req, res) => {
         {
           password: md5(newpassword),
         },
-        { new: true }
+        { new: true },
       );
       if (!user) {
         user = await User.findOneAndUpdate(
@@ -649,7 +677,7 @@ exports.forgotPassword = async (req, res) => {
           {
             password: md5(newpassword),
           },
-          { new: true }
+          { new: true },
         );
       }
     } else {
@@ -661,7 +689,7 @@ exports.forgotPassword = async (req, res) => {
         {
           password: md5(newpassword),
         },
-        { new: true }
+        { new: true },
       );
     }
     if (user) {
@@ -683,7 +711,7 @@ exports.deleteAccountRequest = async (req, res) => {
         email,
       },
       { deleteAccount: { request: true, reasons } },
-      { new: true }
+      { new: true },
     );
     if (user) {
       res.json(user);
@@ -709,7 +737,7 @@ exports.importUsers = async (req, res) => {
             estoreid: new ObjectId(estoreid),
           },
           users[i],
-          { new: true }
+          { new: true },
         );
       } else {
         const checkExist = await User.findOne({
@@ -723,7 +751,7 @@ exports.importUsers = async (req, res) => {
               estoreid: new ObjectId(estoreid),
             },
             users[i],
-            { new: true }
+            { new: true },
           );
         } else {
           const user = new User({
