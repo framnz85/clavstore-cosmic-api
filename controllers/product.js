@@ -2,6 +2,7 @@ const ObjectId = require("mongoose").Types.ObjectId;
 const slugify = require("slugify");
 
 const Product = require("../models/product");
+const SuperProduct = require("../models/superProduct");
 const Estore = require("../models/estore");
 const User = require("../models/user");
 const Category = require("../models/category");
@@ -126,7 +127,7 @@ exports.itemsByBarcode = async (req, res) => {
         .limit(5)
         .exec();
     } else {
-      products = await Product.find({
+      products = await SuperProduct.find({
         barcode,
       })
         .sort({ updatedAt: -1 })

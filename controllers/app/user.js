@@ -103,7 +103,7 @@ exports.updateUser = async (req, res) => {
       objValues,
       {
         new: true,
-      }
+      },
     );
     res.json(user);
   } catch (error) {
