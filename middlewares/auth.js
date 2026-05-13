@@ -23,6 +23,10 @@ exports.adminGratisCheck = async (req, res, next) => {
     estoreid: new ObjectId(estoreid),
   }).exec();
 
+  if (!adminUser) {
+    return res.status(403).json({ error: "Admin user not found." });
+  }
+
   if (["admin", "moderator", "cashier"].includes(adminUser.role)) {
     next();
   } else {
