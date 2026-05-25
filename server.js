@@ -28,22 +28,32 @@ const allowedOrigins = [
   "http://localhost",
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) {
-        return callback(null, true);
-      }
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    credentials: true,
-  }),
-);
+const normalizeOrigin = (origin) => origin.replace(/\/$/, "");
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const normalizedOrigin = normalizeOrigin(origin);
+    const isAllowed = allowedOrigins.some(
+      (allowedOrigin) => normalizeOrigin(allowedOrigin) === normalizedOrigin,
+    );
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  credentials: true,
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 readdirSync("./routes").map((file) =>
   app.use("/" + process.env.API_ROUTES, require("./routes/" + file)),
