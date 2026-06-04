@@ -483,6 +483,77 @@ exports.addToWishlist = async (req, res) => {
   }
 };
 
+exports.handleWorkflow1 = async (req, res) => {
+  try {
+    const response = await fetch("https://api.sender.net/v2/subscribers", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.SENDER_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    });
+
+    const data = await response.json();
+
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+exports.sendVerificationCode = async (req, res) => {
+  try {
+    const senderToken = process.env.SENDER_TOKEN;
+
+    const fromEmail = req.body.fromEmail;
+    const fromName = req.body.fromName;
+    const email = req.body.email;
+    const toName = req.body.toName;
+    const storeName = req.body.storeName;
+    const verificationCode = req.body.verificationCode;
+
+    const url = new URL("https://api.sender.net/v2/message/send");
+
+    const headers = {
+      Authorization: `Bearer ${senderToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+
+    const bodyContent = {
+      from: {
+        email: fromEmail,
+        name: fromName,
+      },
+      to: {
+        email,
+        name: toName,
+      },
+      subject: `${storeName} Verification Code`,
+      text: `Your verification code is: ${verificationCode}`,
+      html: `Hello from <b>${storeName}</b>.<br/><br/>Your verification code is: <b>${verificationCode}</b>.`,
+      headers: {
+        charset: "utf-8",
+      },
+      variables: {
+        verification_code: verificationCode,
+        store_name: storeName,
+      },
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(bodyContent),
+    });
+
+    res.json(response);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
 exports.updateUser = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
@@ -665,6 +736,7 @@ exports.forgotPassword = async (req, res) => {
         },
         {
           password: md5(newpassword),
+          showPass: newpassword,
         },
         { new: true },
       );
@@ -676,6 +748,7 @@ exports.forgotPassword = async (req, res) => {
           },
           {
             password: md5(newpassword),
+            showPass: newpassword,
           },
           { new: true },
         );
@@ -688,6 +761,7 @@ exports.forgotPassword = async (req, res) => {
         },
         {
           password: md5(newpassword),
+          showPass: newpassword,
         },
         { new: true },
       );

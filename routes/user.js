@@ -17,6 +17,8 @@ const {
   deleteAllRaffles,
   sendEmail,
   addToWishlist,
+  handleWorkflow1,
+  sendVerificationCode,
   deleteAccountRequest,
   importUsers,
 } = require("../controllers/user");
@@ -28,18 +30,20 @@ router.get(
   "/gratis/top-entries/:count",
   authCheck,
   adminGratisCheck,
-  getTopEntries
+  getTopEntries,
 );
 router.get(
   "/gratis/get-notification/:day",
   authCheck,
   adminGratisCheck,
-  getNotification
+  getNotification,
 );
 router.post("/gratis/all-users", authCheck, adminGratisCheck, getAllUsers);
 router.post("/gratis/user-create/:resellid", createNewUser);
 router.post("/gratis/user-email", sendEmail);
 router.post("/gratis/add-wishlist", authCheck, addToWishlist);
+router.post("/gratis/workflow-register1", handleWorkflow1);
+router.post("/gratis/send-verification-code", sendVerificationCode);
 router.put("/gratis/user-update", authCheck, updateUser);
 router.put("/gratis/update-customer/:userid", authCheck, updateCustomer);
 router.put("/gratis/user-verify", authCheck, verifyUserEmail);
@@ -48,7 +52,7 @@ router.put(
   "/gratis/reset-password/:userid",
   authCheck,
   adminGratisCheck,
-  resetPassword
+  resetPassword,
 );
 router.put("/gratis/forgot-password", forgotPassword);
 router.put("/gratis/delete-account-request", deleteAccountRequest);
@@ -57,13 +61,13 @@ router.delete(
   "/gratis/user-delete/:userid",
   authCheck,
   adminGratisCheck,
-  deleteUser
+  deleteUser,
 );
 router.delete(
   "/gratis/delete-all-raffles",
   authCheck,
   adminGratisCheck,
-  deleteAllRaffles
+  deleteAllRaffles,
 );
 
 module.exports = router;
