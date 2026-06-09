@@ -303,6 +303,37 @@ exports.adminSales = async (req, res) => {
 
   try {
     const user = await User.findOne({ email }).exec();
+    const buildDateKey = (dateValue) => {
+      const year = dateValue.getUTCFullYear();
+      const month = `${dateValue.getUTCMonth() + 1}`.padStart(2, "0");
+      const day = `${dateValue.getUTCDate()}`.padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const rangeDates = [];
+    const dateCursor = new Date(
+      new Date(dates.dateStart).setHours(new Date(dates.dateStart).getHours()),
+    );
+    const dateLimit = new Date(
+      new Date(dates.endDate).setHours(new Date(dates.endDate).getHours()),
+    );
+
+    while (dateCursor <= dateLimit) {
+      rangeDates.push(buildDateKey(dateCursor));
+      dateCursor.setUTCDate(dateCursor.getUTCDate() + 1);
+    }
+
+    const dailySalesMap = rangeDates.reduce((accumulator, dateValue) => {
+      accumulator[dateValue] = {
+        date: dateValue,
+        capital: 0,
+        cartTotals: 0,
+        delfees: 0,
+        discounts: 0,
+      };
+
+      return accumulator;
+    }, {});
 
     if (user.role === "cashier") {
       orders = await Order.find({
@@ -325,33 +356,59 @@ exports.adminSales = async (req, res) => {
       }).exec();
     }
 
+    let cartTotals = 0;
+    let delfees = 0;
+    let discounts = 0;
+
     orders.forEach((order) => {
-      capital =
-        capital +
-        order.products.reduce((accumulator, value) => {
-          return value.supplierPrice
-            ? accumulator + value.supplierPrice * value.count
-            : 0;
-        }, 0);
+      const orderCapital = order.products.reduce((accumulator, value) => {
+        return (
+          accumulator +
+          (value.supplierPrice ? value.supplierPrice * value.count : 0)
+        );
+      }, 0);
+      const orderCartTotal = order.cartTotal ? order.cartTotal : 0;
+      const orderDelfee = order.delfee ? order.delfee : 0;
+      const orderDiscount = order.discount ? order.discount : 0;
+      const orderAddDiscount = order.addDiscount ? order.addDiscount : 0;
+      const orderTotalDiscount = orderDiscount + orderAddDiscount;
+
+      capital += orderCapital;
+      cartTotals += orderCartTotal;
+      delfees += orderDelfee;
+      discounts += orderTotalDiscount;
+
+      const shiftedCreatedAt = new Date(
+        new Date(order.createdAt).getTime() + 8 * 60 * 60 * 1000,
+      );
+      const dayKey = buildDateKey(shiftedCreatedAt);
+
+      if (dailySalesMap[dayKey]) {
+        dailySalesMap[dayKey].capital += orderCapital;
+        dailySalesMap[dayKey].cartTotals += orderCartTotal;
+        dailySalesMap[dayKey].delfees += orderDelfee;
+        dailySalesMap[dayKey].discounts += orderTotalDiscount;
+      }
     });
 
-    const cartTotals = orders.reduce((accumulator, value) => {
-      const cartTotal = value.cartTotal ? value.cartTotal : 0;
-      return accumulator + cartTotal;
-    }, 0);
+    const dailySales = rangeDates.map((dateValue) => {
+      const daySales = dailySalesMap[dateValue] || {
+        date: dateValue,
+        capital: 0,
+        cartTotals: 0,
+        delfees: 0,
+        discounts: 0,
+      };
+      const gross = daySales.cartTotals + daySales.delfees - daySales.discounts;
 
-    const delfees = orders.reduce((accumulator, value) => {
-      const delfee = value.delfee ? value.delfee : 0;
-      return accumulator + delfee;
-    }, 0);
+      return {
+        ...daySales,
+        gross,
+        netProfit: gross - daySales.capital,
+      };
+    });
 
-    const discounts = orders.reduce((accumulator, value) => {
-      const discount = value.discount ? value.discount : 0;
-      const addDiscount = value.addDiscount ? value.addDiscount : 0;
-      return accumulator + discount + addDiscount;
-    }, 0);
-
-    res.json({ capital, cartTotals, delfees, discounts });
+    res.json({ capital, cartTotals, delfees, discounts, dailySales });
   } catch (error) {
     res.json({ err: "Fetching orders failed. " + error.message });
   }
