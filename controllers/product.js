@@ -659,106 +659,113 @@ exports.importProducts = async (req, res) => {
   try {
     const products = req.body.products;
     for (let i = 0; i < products.length; i++) {
-      if (products[i].category && ObjectId.isValid(products[i].category)) {
-        const checkCategory = await Category.findOne({
-          cat_code: new ObjectId(products[i].category),
-          estoreid: new ObjectId(estoreid),
-        }).exec();
-        if (checkCategory) {
-          products[i] = {
-            ...products[i],
-            category: new ObjectId(checkCategory._id),
-          };
-        } else {
-          products[i] = {
-            ...products[i],
-            category: new ObjectId(products[i].category),
-          };
-        }
-      } else {
-        delete products[i].category;
-      }
-
-      if (products[i].brand && ObjectId.isValid(products[i].brand)) {
-        const checkBrand = await Brand.findOne({
-          bra_code: new ObjectId(products[i].brand),
-          estoreid: new ObjectId(estoreid),
-        }).exec();
-        if (checkBrand) {
-          products[i] = {
-            ...products[i],
-            brand: new ObjectId(checkBrand._id),
-          };
-        } else {
-          products[i] = {
-            ...products[i],
-            brand: new ObjectId(products[i].brand),
-          };
-        }
-      } else {
-        delete products[i].brand;
-      }
-
-      if (
-        products[i].markupType !== "percent" ||
-        products[i].markupType !== "number"
-      ) {
-        products[i] = {
-          ...products[i],
-          markupType: "percent",
-        };
-      }
-
-      if (
-        products[i].discounttype !== "percent" ||
-        products[i].discounttype !== "number"
-      ) {
-        products[i] = {
-          ...products[i],
-          discounttype: "percent",
-        };
-      }
-
-      if (products[i]._id && ObjectId.isValid(products[i]._id)) {
-        await Product.findOneAndUpdate(
-          {
-            _id: new ObjectId(products[i]._id),
-            estoreid: new ObjectId(estoreid),
-          },
-          products[i],
-          { new: true },
-        );
-      } else {
-        const checkExist = await Product.findOne({
-          slug: slugify(products[i].title.toString().toLowerCase()),
+      if (products[i].delete) {
+        await Product.findOneAndDelete({
+          _id: new ObjectId(products[i]._id),
           estoreid: new ObjectId(estoreid),
         });
-        if (checkExist) {
+      } else {
+        if (products[i].category && ObjectId.isValid(products[i].category)) {
+          const checkCategory = await Category.findOne({
+            cat_code: new ObjectId(products[i].category),
+            estoreid: new ObjectId(estoreid),
+          }).exec();
+          if (checkCategory) {
+            products[i] = {
+              ...products[i],
+              category: new ObjectId(checkCategory._id),
+            };
+          } else {
+            products[i] = {
+              ...products[i],
+              category: new ObjectId(products[i].category),
+            };
+          }
+        } else {
+          delete products[i].category;
+        }
+
+        if (products[i].brand && ObjectId.isValid(products[i].brand)) {
+          const checkBrand = await Brand.findOne({
+            bra_code: new ObjectId(products[i].brand),
+            estoreid: new ObjectId(estoreid),
+          }).exec();
+          if (checkBrand) {
+            products[i] = {
+              ...products[i],
+              brand: new ObjectId(checkBrand._id),
+            };
+          } else {
+            products[i] = {
+              ...products[i],
+              brand: new ObjectId(products[i].brand),
+            };
+          }
+        } else {
+          delete products[i].brand;
+        }
+
+        if (
+          products[i].markupType !== "percent" ||
+          products[i].markupType !== "number"
+        ) {
+          products[i] = {
+            ...products[i],
+            markupType: "percent",
+          };
+        }
+
+        if (
+          products[i].discounttype !== "percent" ||
+          products[i].discounttype !== "number"
+        ) {
+          products[i] = {
+            ...products[i],
+            discounttype: "percent",
+          };
+        }
+
+        if (products[i]._id && ObjectId.isValid(products[i]._id)) {
           await Product.findOneAndUpdate(
             {
-              slug: slugify(products[i].title.toString().toLowerCase()),
+              _id: new ObjectId(products[i]._id),
               estoreid: new ObjectId(estoreid),
             },
             products[i],
             { new: true },
           );
         } else {
-          const product = new Product({
-            ...products[i],
-            images: products[i].images
-              ? products[i].images.map((img) => {
-                  return {
-                    ...img,
-                    sourceid: img.sourceid ? img.sourceid : "",
-                    fromid: img.fromid ? img.fromid : "",
-                    copied: true,
-                  };
-                })
-              : [],
+          const checkExist = await Product.findOne({
             slug: slugify(products[i].title.toString().toLowerCase()),
             estoreid: new ObjectId(estoreid),
           });
-          await product.save();
+          if (checkExist) {
+            await Product.findOneAndUpdate(
+              {
+                slug: slugify(products[i].title.toString().toLowerCase()),
+                estoreid: new ObjectId(estoreid),
+              },
+              products[i],
+              { new: true },
+            );
+          } else {
+            const product = new Product({
+              ...products[i],
+              images: products[i].images
+                ? products[i].images.map((img) => {
+                    return {
+                      ...img,
+                      sourceid: img.sourceid ? img.sourceid : "",
+                      fromid: img.fromid ? img.fromid : "",
+                      copied: true,
+                    };
+                  })
+                : [],
+              slug: slugify(products[i].title.toString().toLowerCase()),
+              estoreid: new ObjectId(estoreid),
+            });
+            await product.save();
+          }
         }
       }
     }
