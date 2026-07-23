@@ -17,26 +17,26 @@ router.get(
   "/gratis/check-image-owner-category/:publicid",
   authCheck,
   adminGratisCheck,
-  checkImageUser
+  checkImageUser,
 );
 router.post("/gratis/add-category", authCheck, adminGratisCheck, addCategory);
 router.put(
   "/gratis/update-category/:catid",
   authCheck,
   adminGratisCheck,
-  updateCategory
+  updateCategory,
 );
 router.put(
   "/gratis/import-categories",
   authCheck,
   adminGratisCheck,
-  importCategories
+  importCategories,
 );
 router.delete(
   "/gratis/remove-category/:catid",
   authCheck,
   adminGratisCheck,
-  removeCategory
+  removeCategory,
 );
 
 module.exports = router;

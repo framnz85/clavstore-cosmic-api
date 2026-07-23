@@ -78,10 +78,27 @@ exports.createCashflow = async (req, res) => {
       return res.status(400).json({ error: "User not found" });
     }
 
+    const canOverrideCreatedBy = user.role === "admin";
+    let createdBy = user._id;
+
+    if (req.body.createdBy !== undefined) {
+      if (!canOverrideCreatedBy) {
+        return res
+          .status(403)
+          .json({ error: "Not authorized to set createdBy" });
+      }
+
+      if (!ObjectId.isValid(req.body.createdBy)) {
+        return res.status(400).json({ error: "Invalid createdBy" });
+      }
+
+      createdBy = new ObjectId(req.body.createdBy);
+    }
+
     const cashflow = await createCashflowEntry({
       ...buildCashflowPayload(req.body),
       estoreid,
-      createdBy: user._id,
+      createdBy,
     });
     res.json(cashflow);
   } catch (err) {
@@ -193,23 +210,23 @@ exports.updateCashflow = async (req, res) => {
 
 // Delete Cashflow
 exports.deleteCashflow = async (req, res) => {
-  const { id } = req.params;
+  const { createdBy } = req.params;
   const estoreid = req.headers.estoreid;
   try {
-    if (!ObjectId.isValid(estoreid) || !ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "Invalid cashflow or estore id" });
+    if (!ObjectId.isValid(estoreid) || !ObjectId.isValid(createdBy)) {
+      return res.status(400).json({ error: "Invalid createdBy or estore id" });
     }
 
-    const cashflow = await Cashflow.findOneAndDelete({
-      _id: new ObjectId(id),
+    const result = await Cashflow.deleteMany({
+      createdBy: new ObjectId(createdBy),
       estoreid: new ObjectId(estoreid),
     });
 
-    if (!cashflow) {
+    if (!result.deletedCount) {
       return res.status(404).json({ error: "Cashflow not found" });
     }
 
-    res.json({ success: true });
+    res.json({ success: true, deletedCount: result.deletedCount });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

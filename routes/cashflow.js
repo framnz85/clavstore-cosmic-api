@@ -19,10 +19,10 @@ router.put("/gratis/cashflow/:id", authCheck, adminGratisCheck, updateCashflow);
 
 // Delete Cashflow
 router.delete(
-  "/gratis/cashflow/:id",
+  "/gratis/cashflow/:createdBy",
   authCheck,
   adminGratisCheck,
-  deleteCashflow
+  deleteCashflow,
 );
 
 module.exports = router;
