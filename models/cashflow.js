@@ -43,7 +43,7 @@ const cashflowSchema = new mongoose.Schema(
     },
     createdBy: {
       type: ObjectId,
-      ref: "User",
+      ref: "GratisUser",
     },
   },
   { timestamps: true },

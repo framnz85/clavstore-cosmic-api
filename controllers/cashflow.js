@@ -104,7 +104,7 @@ exports.getCashflows = async (req, res) => {
       req.query.page !== undefined || req.query.pageSize !== undefined;
 
     if (!hasPagination) {
-      const cashflows = await Cashflow.find(query).sort({
+      const cashflows = await Cashflow.find(query).populate("createdBy").sort({
         date: -1,
         createdAt: -1,
       });
@@ -124,6 +124,7 @@ exports.getCashflows = async (req, res) => {
     const [total, cashflows] = await Promise.all([
       Cashflow.countDocuments(query),
       Cashflow.find(query)
+        .populate("createdBy")
         .sort({ date: -1, createdAt: -1 })
         .skip(skip)
         .limit(pageSize),
