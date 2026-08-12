@@ -7,64 +7,164 @@ const MyCountry = require("../models/myCountry");
 const MyAddiv1 = require("../models/myAddiv1");
 const MyAddiv2 = require("../models/myAddiv2");
 const MyAddiv3 = require("../models/myAddiv3");
-// const MyCountry = require("../models/address/myCountry");
+
+const { redisClient } = require("../config/redis");
 
 exports.listCountry = async (req, res) => {
-  const countries = await Country.find({}).exec();
-  res.json(countries);
+  const cacheKey = "countries:all";
+
+  try {
+    const cachedCountries = await redisClient.get(cacheKey);
+
+    if (cachedCountries) {
+      return res.json(JSON.parse(cachedCountries));
+    }
+
+    const countries = await Country.find({}).lean().exec();
+
+    await redisClient.set(cacheKey, JSON.stringify(countries), {
+      EX: 604800,
+    });
+
+    return res.json(countries);
+  } catch (error) {
+    return res.json({
+      err: "Getting countries failed. " + error.message,
+    });
+  }
 };
 
 exports.listAddiv1 = async (req, res) => {
-  if (ObjectId.isValid(req.params.couid)) {
-    const couid = new ObjectId(req.params.couid);
-    const addiv1 = await Addiv1.find({ couid }).sort({ name: 1 }).exec();
-    res.json(addiv1);
-  } else {
-    res.json({ err: "Unidentified Location. Please re-login your account." });
+  const { couid } = req.params;
+
+  if (!ObjectId.isValid(couid)) {
+    return res.json({
+      err: "Unidentified Location. Please re-login your account.",
+    });
+  }
+
+  try {
+    const cacheKey = `addiv1:${couid}`;
+
+    const cachedAddiv1 = await redisClient.get(cacheKey);
+
+    if (cachedAddiv1) {
+      return res.json(JSON.parse(cachedAddiv1));
+    }
+
+    const countryId = new ObjectId(couid);
+
+    const addiv1 = await Addiv1.find({
+      couid: countryId,
+    })
+      .sort({ name: 1 })
+      .lean()
+      .exec();
+
+    await redisClient.set(cacheKey, JSON.stringify(addiv1), {
+      EX: 604800,
+    });
+
+    return res.json(addiv1);
+  } catch (error) {
+    return res.json({
+      err: "Getting administrative divisions failed. " + error.message,
+    });
   }
 };
 
 exports.listAddiv2 = async (req, res) => {
-  if (
-    ObjectId.isValid(req.params.couid) &&
-    ObjectId.isValid(req.params.addiv1)
-  ) {
-    const couid = new ObjectId(req.params.couid);
-    const addiv1 = new ObjectId(req.params.addiv1);
-    const addiv2 = await Addiv2.find({ couid, adDivId1: addiv1 })
+  const { couid, addiv1 } = req.params;
+
+  if (!ObjectId.isValid(couid) || !ObjectId.isValid(addiv1)) {
+    return res.json({
+      err: "Unidentified Location. Please re-login your account.",
+    });
+  }
+
+  try {
+    const cacheKey = `addiv2:${couid}:${addiv1}`;
+
+    const cachedAddiv2 = await redisClient.get(cacheKey);
+
+    if (cachedAddiv2) {
+      return res.json(JSON.parse(cachedAddiv2));
+    }
+
+    const countryId = new ObjectId(couid);
+    const addiv1Id = new ObjectId(addiv1);
+
+    const addiv2 = await Addiv2.find({
+      couid: countryId,
+      adDivId1: addiv1Id,
+    })
       .sort({ name: 1 })
+      .lean()
       .exec();
-    res.json(addiv2);
-  } else {
-    res.json({ err: "Unidentified Location. Please re-login your account." });
+
+    await redisClient.set(cacheKey, JSON.stringify(addiv2), {
+      EX: 604800,
+    });
+
+    return res.json(addiv2);
+  } catch (error) {
+    return res.json({
+      err: "Getting administrative divisions failed. " + error.message,
+    });
   }
 };
 
 exports.listAddiv3 = async (req, res) => {
+  const { couid, addiv1, addiv2 } = req.params;
+
   if (
-    ObjectId.isValid(req.params.couid) &&
-    ObjectId.isValid(req.params.addiv1) &&
-    ObjectId.isValid(req.params.addiv2)
+    !ObjectId.isValid(couid) ||
+    !ObjectId.isValid(addiv1) ||
+    !ObjectId.isValid(addiv2)
   ) {
-    const couid = new ObjectId(req.params.couid);
-    const addiv1 = new ObjectId(req.params.addiv1);
-    const addiv2 = new ObjectId(req.params.addiv2);
+    return res.json({
+      err: "Unidentified Location. Please re-login your account.",
+    });
+  }
+
+  try {
+    const cacheKey = `addiv3:${couid}:${addiv1}:${addiv2}`;
+
+    const cachedAddiv3 = await redisClient.get(cacheKey);
+
+    if (cachedAddiv3) {
+      return res.json(JSON.parse(cachedAddiv3));
+    }
+
+    const countryId = new ObjectId(couid);
+    const addiv1Id = new ObjectId(addiv1);
+    const addiv2Id = new ObjectId(addiv2);
+
     const addiv3 = await Addiv3.find({
-      couid,
-      adDivId1: addiv1,
-      adDivId2: addiv2,
+      couid: countryId,
+      adDivId1: addiv1Id,
+      adDivId2: addiv2Id,
     })
       .sort({ name: 1 })
+      .lean()
       .exec();
-    res.json(addiv3);
-  } else {
-    res.json({ err: "Unidentified Location. Please re-login your account." });
+
+    await redisClient.set(cacheKey, JSON.stringify(addiv3), {
+      EX: 604800,
+    });
+
+    return res.json(addiv3);
+  } catch (error) {
+    return res.json({
+      err: "Getting administrative divisions failed. " + error.message,
+    });
   }
 };
 
 exports.copyAllAddiv1 = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const { country, details } = req.body;
+  const origCouid = country._id;
   let couid = "";
   let addiv1 = "";
   let addiv2 = "";
@@ -86,7 +186,9 @@ exports.copyAllAddiv1 = async (req, res) => {
       couid = newCountry._id;
     }
 
-    const addiv1s = await Addiv1.find({}).exec();
+    const addiv1s = await Addiv1.find({
+      couid: new ObjectId(origCouid),
+    }).exec();
     const newAddiv1s = [];
 
     for (i = 0; i < addiv1s.length; i++) {
@@ -115,13 +217,15 @@ exports.copyAllAddiv1 = async (req, res) => {
       });
     }
 
-    const addiv2s = await Addiv2.find({}).exec();
+    const addiv2s = await Addiv2.find({
+      couid: new ObjectId(origCouid),
+    }).exec();
     const newAddiv2s = [];
 
     for (i = 0; i < addiv2s.length; i++) {
       const origAddiv2 = addiv2s[i]._id;
       const oldAddiv1 = newAddiv1s.find(
-        (data) => data.oldAddiv1.toString() === addiv2s[i].adDivId1.toString()
+        (data) => data.oldAddiv1.toString() === addiv2s[i].adDivId1.toString(),
       );
 
       if (oldAddiv1) {
@@ -151,13 +255,15 @@ exports.copyAllAddiv1 = async (req, res) => {
       }
     }
 
-    const addiv3s = await Addiv3.find({}).exec();
+    const addiv3s = await Addiv3.find({
+      couid: new ObjectId(origCouid),
+    }).exec();
     for (i = 0; i < addiv3s.length; i++) {
       const oldAddiv1 = newAddiv1s.find(
-        (data) => data.oldAddiv1.toString() === addiv3s[i].adDivId1.toString()
+        (data) => data.oldAddiv1.toString() === addiv3s[i].adDivId1.toString(),
       );
       const oldAddiv2 = newAddiv2s.find(
-        (data) => data.oldAddiv2.toString() === addiv3s[i].adDivId2.toString()
+        (data) => data.oldAddiv2.toString() === addiv3s[i].adDivId2.toString(),
       );
 
       if (oldAddiv1 && oldAddiv2) {
@@ -329,7 +435,7 @@ exports.copyAllAddiv2 = async (req, res) => {
     }).exec();
     for (i = 0; i < addiv3s.length; i++) {
       const oldAddiv2 = newAddiv2s.find(
-        (data) => data.oldAddiv2.toString() === addiv3s[i].adDivId2.toString()
+        (data) => data.oldAddiv2.toString() === addiv3s[i].adDivId2.toString(),
       );
 
       if (addiv1 && oldAddiv2) {
@@ -688,89 +794,205 @@ exports.saveLocation3 = async (req, res) => {
 
 exports.listMyCountry = async (req, res) => {
   const estoreid = req.headers.estoreid;
-  const countries = await MyCountry.find({
-    estoreid: new ObjectId(estoreid),
-  }).exec();
-  res.json(countries);
+
+  try {
+    const cacheKey = `myCountry:${estoreid}`;
+    const cachedCountries = await redisClient.get(cacheKey);
+
+    if (cachedCountries) {
+      return res.json(JSON.parse(cachedCountries));
+    }
+
+    const countries = await MyCountry.find({
+      estoreid: new ObjectId(estoreid),
+    })
+      .lean()
+      .exec();
+
+    await redisClient.set(cacheKey, JSON.stringify(countries), {
+      EX: 604800,
+    });
+
+    return res.json(countries);
+  } catch (error) {
+    return res.json({
+      err: "Getting countries failed. " + error.message,
+    });
+  }
 };
 
 exports.listNewAdded = async (req, res) => {
   const estoreid = req.headers.estoreid;
-  const addiv2 = await MyAddiv2.find({ estoreid: new ObjectId(estoreid) })
-    .limit(10)
-    .exec();
-  const addiv3 = await MyAddiv3.find({
-    adDivId2: { $in: addiv2.map((addiv) => addiv._id) },
-    estoreid: new ObjectId(estoreid),
-  })
-    .sort({ createAt: -1 })
-    .exec();
-  res.json(addiv3);
+
+  try {
+    const cacheKey = `myNewAdded:${estoreid}`;
+    const cachedAddiv3 = await redisClient.get(cacheKey);
+
+    if (cachedAddiv3) {
+      return res.json(JSON.parse(cachedAddiv3));
+    }
+
+    const addiv2 = await MyAddiv2.find({
+      estoreid: new ObjectId(estoreid),
+    })
+      .limit(10)
+      .lean()
+      .exec();
+
+    const addiv3 = await MyAddiv3.find({
+      adDivId2: {
+        $in: addiv2.map((addiv) => addiv._id),
+      },
+      estoreid: new ObjectId(estoreid),
+    })
+      .sort({ createAt: -1 })
+      .lean()
+      .exec();
+
+    await redisClient.set(cacheKey, JSON.stringify(addiv3), {
+      EX: 604800,
+    });
+
+    return res.json(addiv3);
+  } catch (error) {
+    return res.json({
+      err: "Getting newly added locations failed. " + error.message,
+    });
+  }
 };
 
 exports.listMyAddiv1 = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const couid = req.params.couid;
-  const addiv1 = await MyAddiv1.find({
-    couid: new ObjectId(couid),
-    estoreid: new ObjectId(estoreid),
-  })
-    .sort({ name: 1 })
-    .exec();
-  res.json(addiv1);
+
+  try {
+    const cacheKey = `myAddiv1:${estoreid}:${couid}`;
+    const cachedAddiv1 = await redisClient.get(cacheKey);
+
+    if (cachedAddiv1) {
+      return res.json(JSON.parse(cachedAddiv1));
+    }
+
+    const addiv1 = await MyAddiv1.find({
+      couid: new ObjectId(couid),
+      estoreid: new ObjectId(estoreid),
+    })
+      .sort({ name: 1 })
+      .lean()
+      .exec();
+
+    await redisClient.set(cacheKey, JSON.stringify(addiv1), {
+      EX: 604800,
+    });
+
+    return res.json(addiv1);
+  } catch (error) {
+    return res.json({
+      err: "Getting administrative divisions failed. " + error.message,
+    });
+  }
 };
 
 exports.listMyAddiv2 = async (req, res) => {
   const estoreid = req.headers.estoreid;
-  const couid = new ObjectId(req.params.couid);
-  let addiv2 = [];
+  const couid = req.params.couid;
+  const addiv1Param = req.params.addiv1;
 
-  if (req.params.addiv1 === "all") {
-    addiv2 = await MyAddiv2.find({
-      couid: new ObjectId(couid),
-      estoreid: new ObjectId(estoreid),
-    })
-      .sort({ name: 1 })
-      .exec();
-  } else {
-    const addiv1 = new ObjectId(req.params.addiv1);
-    addiv2 = await MyAddiv2.find({
-      couid: new ObjectId(couid),
-      estoreid: new ObjectId(estoreid),
-      adDivId1: addiv1,
-    })
-      .sort({ name: 1 })
-      .exec();
+  try {
+    const cacheKey = `myAddiv2:${estoreid}:${couid}:${addiv1Param}`;
+    const cachedAddiv2 = await redisClient.get(cacheKey);
+
+    if (cachedAddiv2) {
+      return res.json(JSON.parse(cachedAddiv2));
+    }
+
+    let addiv2 = [];
+
+    if (addiv1Param === "all") {
+      addiv2 = await MyAddiv2.find({
+        couid: new ObjectId(couid),
+        estoreid: new ObjectId(estoreid),
+      })
+        .sort({ name: 1 })
+        .lean()
+        .exec();
+    } else {
+      const addiv1 = new ObjectId(addiv1Param);
+
+      addiv2 = await MyAddiv2.find({
+        couid: new ObjectId(couid),
+        estoreid: new ObjectId(estoreid),
+        adDivId1: addiv1,
+      })
+        .sort({ name: 1 })
+        .lean()
+        .exec();
+    }
+
+    await redisClient.set(cacheKey, JSON.stringify(addiv2), {
+      EX: 604800,
+    });
+
+    return res.json(addiv2);
+  } catch (error) {
+    return res.json({
+      err: "Getting administrative divisions failed. " + error.message,
+    });
   }
-  res.json(addiv2);
 };
 
 exports.listMyAddiv3 = async (req, res) => {
   const estoreid = req.headers.estoreid;
-  const couid = new ObjectId(req.params.couid);
-  const addiv1 = new ObjectId(req.params.addiv1);
-  let addiv3 = [];
+  const couid = req.params.couid;
+  const addiv1Param = req.params.addiv1;
+  const addiv2Param = req.params.addiv2;
 
-  if (req.params.addiv2 === "all") {
-    addiv3 = await MyAddiv3.find({
-      couid: new ObjectId(couid),
-      estoreid: new ObjectId(estoreid),
-      adDivId1: addiv1,
-    })
-      .sort({ name: 1 })
-      .exec();
-  } else {
-    const addiv2 = new ObjectId(req.params.addiv2);
-    addiv3 = await MyAddiv3.find({
-      couid: new ObjectId(couid),
-      estoreid: new ObjectId(estoreid),
-      adDivId1: addiv1,
-      adDivId2: addiv2,
-    })
-      .sort({ name: 1 })
-      .exec();
+  try {
+    const cacheKey = `myAddiv3:${estoreid}:${couid}:${addiv1Param}:${addiv2Param}`;
+    const cachedAddiv3 = await redisClient.get(cacheKey);
+
+    if (cachedAddiv3) {
+      return res.json(JSON.parse(cachedAddiv3));
+    }
+
+    let addiv3 = [];
+
+    if (addiv2Param === "all") {
+      const addiv1 = new ObjectId(addiv1Param);
+
+      addiv3 = await MyAddiv3.find({
+        couid: new ObjectId(couid),
+        estoreid: new ObjectId(estoreid),
+        adDivId1: addiv1,
+      })
+        .sort({ name: 1 })
+        .lean()
+        .exec();
+    } else {
+      const addiv1 = new ObjectId(addiv1Param);
+      const addiv2 = new ObjectId(addiv2Param);
+
+      addiv3 = await MyAddiv3.find({
+        couid: new ObjectId(couid),
+        estoreid: new ObjectId(estoreid),
+        adDivId1: addiv1,
+        adDivId2: addiv2,
+      })
+        .sort({ name: 1 })
+        .lean()
+        .exec();
+    }
+
+    await redisClient.set(cacheKey, JSON.stringify(addiv3), {
+      EX: 604800,
+    });
+
+    return res.json(addiv3);
+  } catch (error) {
+    return res.json({
+      err: "Getting administrative divisions failed. " + error.message,
+    });
   }
-  res.json(addiv3);
 };
 
 exports.getAddiv3 = async (req, res) => {
@@ -792,7 +1014,7 @@ exports.updateMyAddiv3 = async (req, res) => {
     const updated = await MyAddiv3.findOneAndUpdate(
       { _id: req.params.addiv3, estoreid: new ObjectId(estoreid) },
       req.body,
-      { new: true }
+      { new: true },
     );
     res.json(updated);
   } catch (error) {
