@@ -1296,6 +1296,7 @@ exports.saveCartOrder = async (req, res) => {
         }
 
         clearMultiItemsCache(estoreid, "adminOrders");
+        clearMultiItemsCache(estoreid, "adminSales");
         if (checkUser && checkUser._id)
           clearSubItemsCache(checkUser._id.toString(), estoreid, "userOrders");
         if (user && user._id)
@@ -1449,6 +1450,7 @@ exports.saveCartPurchase = async (req, res) => {
       }
 
       clearMultiItemsCache(estoreid, "adminOrders");
+      clearMultiItemsCache(estoreid, "adminSales");
       if (checkUser && checkUser._id)
         clearSubItemsCache(checkUser._id.toString(), estoreid, "userOrders");
       if (user && user._id)
@@ -1661,6 +1663,7 @@ exports.updateOrderStatus = async (req, res) => {
           }
 
           clearMultiItemsCache(estoreid, "adminOrders");
+          clearMultiItemsCache(estoreid, "adminSales");
           if (orderedBy) clearSubItemsCache(orderedBy, estoreid, "userOrders");
           clearSubItemCache(orderid, estoreid, "order");
           clearSubItemCache(orderid, estoreid, "order:supplier");
@@ -1713,6 +1716,7 @@ exports.updatePaidOrder = async (req, res) => {
         res.json(order);
 
         clearMultiItemsCache(estoreid, "adminOrders");
+        clearMultiItemsCache(estoreid, "adminSales");
         if (order && order.orderedBy)
           clearSubItemsCache(order.orderedBy, estoreid, "userOrders");
         clearSubItemCache(orderid, estoreid, "order");
@@ -1749,6 +1753,7 @@ exports.updateCustomDetails = async (req, res) => {
         res.json(order);
 
         clearMultiItemsCache(estoreid, "adminOrders");
+        clearMultiItemsCache(estoreid, "adminSales");
         if (order && order.orderedBy)
           clearSubItemsCache(order.orderedBy, estoreid, "userOrders");
         clearSubItemCache(orderid, estoreid, "order");
@@ -1786,6 +1791,7 @@ exports.updateProductRating = async (req, res) => {
         res.json(order);
 
         clearMultiItemsCache(estoreid, "adminOrders");
+        clearMultiItemsCache(estoreid, "adminSales");
         if (order && order.orderedBy)
           clearSubItemsCache(order.orderedBy, estoreid, "userOrders");
         clearSubItemCache(orderid, estoreid, "order");
@@ -1840,6 +1846,7 @@ exports.voidProducts = async (req, res) => {
       res.json({ ok: true });
 
       clearMultiItemsCache(estoreid, "adminOrders");
+      clearMultiItemsCache(estoreid, "adminSales");
       if (customer && customer._id)
         clearSubItemsCache(customer._id, estoreid, "userOrders");
       if (user && user._id)
@@ -1996,6 +2003,7 @@ exports.submitEditOrder = async (req, res) => {
         res.json({ ok: true });
 
         clearMultiItemsCache(estoreid, "adminOrders");
+        clearMultiItemsCache(estoreid, "adminSales");
         if (user && user._id)
           clearSubItemsCache(user._id, estoreid, "userOrders");
         clearSubItemCache(orderid, estoreid, "order");
@@ -2035,6 +2043,7 @@ exports.deleteAdminOrder = async (req, res) => {
     res.json(order);
 
     clearMultiItemsCache(estoreid, "adminOrders");
+    clearMultiItemsCache(estoreid, "adminSales");
     if (order && order.orderedBy)
       clearSubItemsCache(order.orderedBy, estoreid, "userOrders");
     clearSubItemCache(orderid, estoreid, "order");
@@ -2060,6 +2069,7 @@ exports.deleteOrder = async (req, res) => {
       res.json(order);
 
       clearMultiItemsCache(estoreid, "adminOrders");
+      clearMultiItemsCache(estoreid, "adminSales");
       if (user && user._id)
         clearSubItemsCache(user._id, estoreid, "userOrders");
       clearSubItemCache(orderid, estoreid, "order");
