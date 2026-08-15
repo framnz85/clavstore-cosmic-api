@@ -3,6 +3,8 @@ const Raffle = require("../../models/raffle");
 const Product = require("../../models/product");
 const Estore = require("../../models/estore");
 
+const { redisClient } = require("../../config/redis");
+
 exports.createRaffle = async (estoreid, user, order) => {
   try {
     const estore = await Estore.findOne({

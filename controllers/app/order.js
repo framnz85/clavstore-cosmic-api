@@ -5,11 +5,13 @@ const User = require("../../models/user");
 const Estore = require("../../models/estore");
 const Product = require("../../models/product");
 const Cart = require("../../models/cart");
+
 const {
   createRaffle,
   checkOrderedProd,
   updateOrderedProd,
 } = require("./common");
+const { redisClient } = require("../../config/redis");
 
 exports.getPosOrders = async (req, res) => {
   const estoreid = req.headers.estoreid;
