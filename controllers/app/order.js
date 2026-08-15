@@ -61,10 +61,31 @@ exports.updateCart = async (req, res) => {
         object.count = cart[i].count;
         object.excess = cart[i].excess ? true : false;
 
-        const productFromDb = await Product.findOne({
-          _id: new ObjectId(cart[i].product),
-          estoreid: new ObjectId(estoreid),
-        }).exec();
+        const productId = cart[i]._id;
+        const cacheKey = `products:${estoreid}`;
+
+        let productFromDb = null;
+
+        const cachedData = await redisClient.get(cacheKey);
+
+        if (cachedData) {
+          const cachedProducts = JSON.parse(cachedData).products || [];
+
+          productFromDb = cachedProducts.find(
+            (product) =>
+              product &&
+              product._id &&
+              product._id.toString() === productId.toString(),
+          );
+        }
+
+        if (!productFromDb && ObjectId.isValid(productId)) {
+          productFromDb = await Product.findOne({
+            _id: new ObjectId(productId),
+            estoreid: new ObjectId(estoreid),
+          }).exec();
+        }
+
         object.supplierPrice = cart[i].excess
           ? cart[i].supplierPrice
           : productFromDb.supplierPrice;
@@ -267,10 +288,35 @@ exports.saveOrder = async (req, res) => {
         const orderProducts = order.products;
 
         for (i = 0; i < orderProducts.length; i++) {
-          const result = await Product.findOne({
-            _id: new ObjectId(orderProducts[i].product),
-            estoreid: Object(estoreid),
-          }).exec();
+          const productId = orderProducts[i].product;
+          const cacheKey = `products:${estoreid}`;
+
+          let result = null;
+
+          const cachedData = await redisClient.get(cacheKey);
+
+          if (cachedData) {
+            const parsedData = JSON.parse(cachedData);
+
+            const cachedProducts = Array.isArray(parsedData.products)
+              ? parsedData.products
+              : [];
+
+            result = cachedProducts.find(
+              (product) =>
+                product &&
+                product._id &&
+                product._id.toString() === productId.toString(),
+            );
+          }
+
+          if (!result && ObjectId.isValid(productId)) {
+            result = await Product.findOne({
+              _id: new ObjectId(productId),
+              estoreid: new ObjectId(estoreid),
+            }).exec();
+          }
+
           if (result && result._id) {
             newProducts.push(result);
           }

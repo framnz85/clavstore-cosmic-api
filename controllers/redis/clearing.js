@@ -1,7 +1,11 @@
 const { redisClient } = require("../../config/redis");
 
-exports.clearProductsCache = async (estoreid) => {
-  await redisClient.del(`products:${estoreid}`);
+exports.clearOneItemCache = async (estoreid, cacheName) => {
+  await redisClient.del(`${cacheName}:${estoreid}`);
+};
+
+exports.clearSubItemCache = async (subid, estoreid, cacheName) => {
+  await redisClient.del(`${cacheName}:${estoreid}:${subid}`);
 };
 
 exports.clearMultiItemsCache = async (estoreid, cacheName) => {
@@ -9,18 +13,43 @@ exports.clearMultiItemsCache = async (estoreid, cacheName) => {
 
   let cursor = "0";
 
-  do {
-    const result1 = await redisClient.scan(cursor, {
-      MATCH: pattern,
-      COUNT: 100,
-    });
+  try {
+    do {
+      const result = await redisClient.scan(cursor, {
+        MATCH: pattern,
+        COUNT: 100,
+      });
 
-    cursor = result1.cursor;
+      cursor = result.cursor;
 
-    if (result1.keys && result1.keys.length > 0) {
-      for (const key of result1.keys) {
-        await redisClient.del(key);
+      if (result.keys && result.keys.length > 0) {
+        await redisClient.del(result.keys);
       }
-    }
-  } while (cursor !== "0");
+    } while (cursor !== "0");
+  } catch (error) {
+    console.error(`Failed to clear Redis cache for ${pattern}:`, error.message);
+  }
+};
+
+exports.clearSubItemsCache = async (subid, estoreid, cacheName) => {
+  const pattern = `${cacheName}:${estoreid}:${subid}:*`;
+
+  let cursor = "0";
+
+  try {
+    do {
+      const result = await redisClient.scan(cursor, {
+        MATCH: pattern,
+        COUNT: 100,
+      });
+
+      cursor = result.cursor;
+
+      if (result.keys && result.keys.length > 0) {
+        await redisClient.del(result.keys);
+      }
+    } while (cursor !== "0");
+  } catch (error) {
+    console.error("Failed to clear Redis sub-items cache:", error);
+  }
 };

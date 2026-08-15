@@ -5,6 +5,12 @@ const Product = require("../../models/product");
 const Order = require("../../models/order");
 const User = require("../../models/user");
 
+const { redisClient } = require("../../config/redis");
+const {
+  clearOneItemCache,
+  clearMultiItemsCache,
+} = require("../redis/clearing");
+
 exports.getAllCounts = async (req, res) => {
   const estoreid = req.headers.estoreid;
 
@@ -34,12 +40,27 @@ exports.getProducts = async (req, res) => {
   const limit = req.body.limit;
 
   try {
-    const products = await Product.find({
-      estoreid: new ObjectId(estoreid),
-    })
-      .skip(page * limit)
-      .limit(limit)
-      .exec();
+    const cacheKey = `products:${estoreid}:page:${page}:limit:${limit}`;
+
+    let products;
+
+    const cachedData = await redisClient.get(cacheKey);
+
+    if (cachedData) {
+      products = JSON.parse(cachedData);
+    } else {
+      products = await Product.find({
+        estoreid: new ObjectId(estoreid),
+      })
+        .skip(page * limit)
+        .limit(limit)
+        .lean()
+        .exec();
+
+      await redisClient.set(cacheKey, JSON.stringify(products), {
+        EX: 604800,
+      });
+    }
 
     res.json(products);
   } catch (error) {
@@ -60,7 +81,7 @@ exports.updateProduct = async (req, res) => {
         estoreid: new ObjectId(estoreid),
       },
       { $inc: { quantity: -count, sold: count } },
-      { new: true }
+      { new: true },
     );
 
     if (product.quantity <= 0) {
@@ -88,11 +109,15 @@ exports.updateProduct = async (req, res) => {
           price: newPrice,
           waiting: {},
         },
-        { new: true }
+        { new: true },
       );
     }
 
     res.json(product);
+
+    clearOneItemCache(estoreid, "products");
+    clearMultiItemsCache(estoreid, "adminItems");
+    clearMultiItemsCache(estoreid, "searchProduct");
   } catch (error) {
     res.json({ err: "Updating a product details failed." + error.message });
   }

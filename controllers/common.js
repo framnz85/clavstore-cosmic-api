@@ -7,67 +7,176 @@ const Product = require("../models/product");
 const Estore = require("../models/estore");
 const MyAddiv3 = require("../models/myAddiv3");
 
+const { redisClient } = require("../config/redis");
+
 exports.populateProduct = async (products, estoreid) => {
   let categories = [];
   let brands = [];
   let newProducts = [];
 
   products = products.map((product) => {
-    categories.push(product.category);
-    brands.push(product.brand);
+    if (product.category) {
+      categories.push(product.category);
+    }
+
+    if (product.brand) {
+      brands.push(product.brand);
+    }
+
     return product;
   });
 
-  const categoryList = await Category.find({
-    _id: { $in: categories },
-    estoreid: new ObjectId(estoreid),
-  }).exec();
+  categories = [
+    ...new Set(
+      categories
+        .filter((id) => id && ObjectId.isValid(id))
+        .map((id) => id.toString()),
+    ),
+  ];
 
-  const brandList = await Brand.find({
-    _id: { $in: brands },
-    estoreid: new ObjectId(estoreid),
-  }).exec();
+  brands = [
+    ...new Set(
+      brands
+        .filter((id) => id && ObjectId.isValid(id))
+        .map((id) => id.toString()),
+    ),
+  ];
+
+  const categoryCacheKey = `categories:${estoreid}`;
+  const brandCacheKey = `brands:${estoreid}`;
+
+  let categoryList = [];
+  let brandList = [];
+
+  const cachedCategories = await redisClient.get(categoryCacheKey);
+
+  if (cachedCategories) {
+    const parsedCategories = JSON.parse(cachedCategories);
+
+    categoryList = Array.isArray(parsedCategories) ? parsedCategories : [];
+  } else {
+    categoryList = await Category.find({
+      estoreid: new ObjectId(estoreid),
+    })
+      .lean()
+      .exec();
+
+    await redisClient.set(categoryCacheKey, JSON.stringify(categoryList), {
+      EX: 604800,
+    });
+  }
+
+  const cachedBrands = await redisClient.get(brandCacheKey);
+
+  if (cachedBrands) {
+    const parsedBrands = JSON.parse(cachedBrands);
+
+    brandList = Array.isArray(parsedBrands) ? parsedBrands : [];
+  } else {
+    brandList = await Brand.find({
+      estoreid: new ObjectId(estoreid),
+    })
+      .lean()
+      .exec();
+
+    await redisClient.set(brandCacheKey, JSON.stringify(brandList), {
+      EX: 604800,
+    });
+  }
+
+  if (categories.length > 0) {
+    const categoryIds = new Set(categories);
+
+    categoryList = categoryList.filter(
+      (category) =>
+        category && category._id && categoryIds.has(category._id.toString()),
+    );
+  } else {
+    categoryList = [];
+  }
+
+  if (brands.length > 0) {
+    const brandIds = new Set(brands);
+
+    brandList = brandList.filter(
+      (brand) => brand && brand._id && brandIds.has(brand._id.toString()),
+    );
+  } else {
+    brandList = [];
+  }
 
   products = products.map((product) => {
+    const productData = product._doc ? product._doc : product;
+
+    const category = categoryList.find(
+      (cat) =>
+        cat &&
+        cat._id &&
+        product.category &&
+        cat._id.toString() === product.category.toString(),
+    );
+
+    const brand = brandList.find(
+      (bra) =>
+        bra &&
+        bra._id &&
+        product.brand &&
+        bra._id.toString() === product.brand.toString(),
+    );
+
     if (product.brand) {
       return {
-        ...(product._doc ? product._doc : product),
-        category: categoryList.find(
-          (cat) =>
-            cat._id &&
-            product.category &&
-            cat._id.toString() === product.category.toString()
-        ),
-        brand: brandList.find(
-          (bra) =>
-            bra._id &&
-            product.brand &&
-            bra._id.toString() === product.brand.toString()
-        ),
-      };
-    } else {
-      return {
-        ...(product._doc ? product._doc : product),
-        category: categoryList.find(
-          (cat) =>
-            cat._id &&
-            product.category &&
-            cat._id.toString() === product.category.toString()
-        ),
+        ...productData,
+        category,
+        brand,
       };
     }
+
+    return {
+      ...productData,
+      category,
+    };
   });
 
-  for (i = 0; i < products.length; i++) {
-    const variants = products[i].brand
-      ? await Product.find({
-          brand: new ObjectId(products[i].brand),
+  for (let i = 0; i < products.length; i++) {
+    let variants = [];
+
+    if (
+      products[i]._id &&
+      products[i].brand &&
+      products[i].brand._id &&
+      ObjectId.isValid(products[i].brand._id)
+    ) {
+      const productId = products[i]._id.toString();
+      const variantsCacheKey = `variants:${estoreid}:${productId}`;
+
+      const cachedVariants = await redisClient.get(variantsCacheKey);
+
+      if (cachedVariants) {
+        try {
+          variants = JSON.parse(cachedVariants);
+        } catch (error) {
+          variants = [];
+        }
+      } else {
+        variants = await Product.find({
+          brand: new ObjectId(products[i].brand._id),
           estoreid: new ObjectId(estoreid),
         })
           .select("_id slug variantName")
-          .exec()
-      : [];
-    newProducts.push({ ...products[i], variants });
+          .lean()
+          .exec();
+
+        await redisClient.set(variantsCacheKey, JSON.stringify(variants), {
+          EX: 259200, // 7 days
+        });
+      }
+    }
+
+    newProducts.push({
+      ...products[i],
+      variants,
+    });
   }
 
   return newProducts;
@@ -96,7 +205,7 @@ exports.createRaffle = async (estoreid, user, order) => {
         raffleDate: estore.raffleDate,
       };
       const raffleCount = Math.floor(
-        parseFloat(order.cartTotal) / parseFloat(estore.raffleEntryAmount)
+        parseFloat(order.cartTotal) / parseFloat(estore.raffleEntryAmount),
       );
 
       const raffleEntries = Array(raffleCount).fill(raffleInsert);
@@ -125,7 +234,7 @@ exports.populateRaffle = async (entries) => {
         (owner) =>
           owner._id &&
           entry.owner &&
-          owner._id.toString() === entry.owner.toString()
+          owner._id.toString() === entry.owner.toString(),
       ),
     };
   });
@@ -153,7 +262,7 @@ exports.populateEstore = async (estores) => {
         (owner) =>
           estore._id &&
           owner.estoreid &&
-          owner.estoreid.toString() === estore._id.toString()
+          owner.estoreid.toString() === estore._id.toString(),
       ),
     };
   });
@@ -166,10 +275,40 @@ exports.checkOrderedProd = async (products, estoreid) => {
   for (i = 0; i < products.length; i++) {
     let finalMarkup = 0;
     let finalDiscount = 0;
-    const checkProduct = await Product.findOne({
-      _id: new ObjectId(products[i].product),
-      estoreid: new ObjectId(estoreid),
-    });
+
+    const productId = products[i].product;
+    const productCacheKey = `products:${estoreid}`;
+
+    let checkProduct = null;
+
+    const cachedProductsData = await redisClient.get(productCacheKey);
+
+    if (cachedProductsData) {
+      const parsedData = JSON.parse(cachedProductsData);
+
+      const cachedProducts = Array.isArray(parsedData.products)
+        ? parsedData.products
+        : [];
+
+      checkProduct = cachedProducts.find(
+        (product) =>
+          product &&
+          product._id &&
+          product._id.toString() === productId.toString(),
+      );
+    }
+
+    if (!checkProduct) {
+      if (!ObjectId.isValid(productId)) {
+        checkProduct = null;
+      } else {
+        checkProduct = await Product.findOne({
+          _id: new ObjectId(productId),
+          estoreid: new ObjectId(estoreid),
+        }).exec();
+      }
+    }
+
     if (!products[i].excess && checkProduct) {
       if (
         parseFloat(products[i].count) > parseFloat(checkProduct.quantity) &&
@@ -232,10 +371,39 @@ exports.checkOrderedProd = async (products, estoreid) => {
 };
 
 const handleUpdateProd = async (product, estoreid, updateType) => {
-  const checkProduct = await Product.findOne({
-    _id: new ObjectId(product.product),
-    estoreid: new ObjectId(estoreid),
-  });
+  const productId = product.product;
+  const productCacheKey = `products:${estoreid}`;
+
+  let checkProduct = null;
+
+  const cachedProductsData = await redisClient.get(productCacheKey);
+
+  if (cachedProductsData) {
+    const parsedData = JSON.parse(cachedProductsData);
+
+    const cachedProducts = Array.isArray(parsedData.products)
+      ? parsedData.products
+      : [];
+
+    checkProduct = cachedProducts.find(
+      (product) =>
+        product &&
+        product._id &&
+        product._id.toString() === productId.toString(),
+    );
+  }
+
+  if (!checkProduct) {
+    if (!ObjectId.isValid(productId)) {
+      checkProduct = null;
+    } else {
+      checkProduct = await Product.findOne({
+        _id: new ObjectId(productId),
+        estoreid: new ObjectId(estoreid),
+      }).exec();
+    }
+  }
+
   if (checkProduct) {
     let finalQty = 0;
     let finalSold = 0;
@@ -259,7 +427,7 @@ const handleUpdateProd = async (product, estoreid, updateType) => {
         quantity: parseFloat(finalQty) > 0 ? parseFloat(finalQty) : 0,
         sold: parseFloat(finalSold) > 0 ? parseFloat(finalSold) : 0,
       },
-      { new: true }
+      { new: true },
     );
 
     if (
@@ -316,7 +484,7 @@ const handleUpdateProd = async (product, estoreid, updateType) => {
           price: newPrice,
           waiting: {},
         },
-        { new: true }
+        { new: true },
       );
     }
   }
@@ -331,16 +499,16 @@ exports.updateOrderedProd = async (products, estoreid, updateType) => {
       let mainExcess = products.filter(
         (prod) =>
           prod.product.toString() === listOfExcess[i].product.toString() &&
-          prod._id.toString() !== listOfExcess[i]._id.toString()
+          prod._id.toString() !== listOfExcess[i]._id.toString(),
       );
       if (mainExcess[0] && mainExcess[0]._id) {
         await handleUpdateProd(mainExcess[0], estoreid, updateType);
         remainingProds = remainingProds.filter(
-          (prod) => prod._id.toString() !== mainExcess[0]._id.toString()
+          (prod) => prod._id.toString() !== mainExcess[0]._id.toString(),
         );
         await handleUpdateProd(listOfExcess[i], estoreid, updateType);
         remainingProds = remainingProds.filter(
-          (prod) => prod._id.toString() !== listOfExcess[i]._id.toString()
+          (prod) => prod._id.toString() !== listOfExcess[i]._id.toString(),
         );
       }
     }
@@ -381,7 +549,7 @@ const handleUpdateToProd = async (
   product,
   frmestoreid,
   toestoreid,
-  updateType
+  updateType,
 ) => {
   const orConditions = [];
   const searchObj = {};
@@ -432,7 +600,7 @@ const handleUpdateToProd = async (
       {
         quantity: parseFloat(finalQty) > 0 ? parseFloat(finalQty) : 0,
       },
-      { new: true }
+      { new: true },
     );
   }
 };
@@ -441,7 +609,7 @@ exports.updateOrderedWareProd = async (
   products,
   frmestoreid,
   toestoreid,
-  updateType
+  updateType,
 ) => {
   let remainingProds = products;
   const listOfExcess = products.filter((prod) => prod.excess);
@@ -451,7 +619,7 @@ exports.updateOrderedWareProd = async (
       let mainExcess = products.filter(
         (prod) =>
           prod.product.toString() === listOfExcess[i].product.toString() &&
-          prod._id.toString() !== listOfExcess[i]._id.toString()
+          prod._id.toString() !== listOfExcess[i]._id.toString(),
       );
       if (mainExcess[0] && mainExcess[0]._id) {
         await handleUpdateProd(mainExcess[0], frmestoreid, updateType);
@@ -459,20 +627,20 @@ exports.updateOrderedWareProd = async (
           mainExcess[0],
           frmestoreid,
           toestoreid,
-          updateType
+          updateType,
         );
         remainingProds = remainingProds.filter(
-          (prod) => prod._id.toString() !== mainExcess[0]._id.toString()
+          (prod) => prod._id.toString() !== mainExcess[0]._id.toString(),
         );
         await handleUpdateProd(listOfExcess[i], frmestoreid, updateType);
         await handleUpdateToProd(
           listOfExcess[i],
           frmestoreid,
           toestoreid,
-          updateType
+          updateType,
         );
         remainingProds = remainingProds.filter(
-          (prod) => prod._id.toString() !== listOfExcess[i]._id.toString()
+          (prod) => prod._id.toString() !== listOfExcess[i]._id.toString(),
         );
       }
     }
@@ -484,7 +652,7 @@ exports.updateOrderedWareProd = async (
       remainingProds[i],
       frmestoreid,
       toestoreid,
-      updateType
+      updateType,
     );
   }
 };

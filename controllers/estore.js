@@ -19,6 +19,7 @@ const MyAddiv2 = require("../models/myAddiv2");
 const MyAddiv3 = require("../models/myAddiv3");
 
 const { populateEstore } = require("./common");
+const { redisClient } = require("../config/redis");
 
 exports.getEstore = async (req, res) => {
   const resellid = req.headers.resellid;
@@ -515,11 +516,43 @@ exports.copyingEstore = async (req, res) => {
         });
         await estore.save();
 
-        const products = await Product.find({
-          estoreid: new ObjectId(fromid),
-        }).select(
-          "-_id -discounttype -quantity -sold -createdAt -updatedAt -__v",
-        );
+        const productCacheKey = `products:${fromid}`;
+
+        let products = [];
+
+        const cachedProductsData = await redisClient.get(productCacheKey);
+
+        if (cachedProductsData) {
+          const parsedData = JSON.parse(cachedProductsData);
+
+          const cachedProducts = Array.isArray(parsedData.products)
+            ? parsedData.products
+            : [];
+
+          products = cachedProducts.map((product) => {
+            const {
+              _id,
+              discounttype,
+              quantity,
+              sold,
+              createdAt,
+              updatedAt,
+              __v,
+              ...productData
+            } = product;
+
+            return productData;
+          });
+        } else {
+          products = await Product.find({
+            estoreid: new ObjectId(fromid),
+          })
+            .select(
+              "-_id -discounttype -quantity -sold -createdAt -updatedAt -__v",
+            )
+            .lean()
+            .exec();
+        }
 
         const copyingProducts = products.map((product) => {
           const images = product.images.map((img) => {

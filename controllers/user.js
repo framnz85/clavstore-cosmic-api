@@ -11,6 +11,10 @@ const Raffle = require("../models/raffle");
 const Notification = require("../models/notification");
 const Salesnotify = require("../models/salesnotify");
 
+const { redisClient } = require("../config/redis");
+const { getUserByEmail } = require("./auth");
+const { clearOneItemCache, clearMultiItemsCache } = require("./redis/clearing");
+
 const {
   populateRaffle,
   populateWishlist,
@@ -48,6 +52,7 @@ exports.getUserDetails = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const resellid = req.params.resellid;
   const resellslug = req.headers.resellslug;
+
   let wishlist = [];
   let addiv3 = {};
 
@@ -55,6 +60,7 @@ exports.getUserDetails = async (req, res) => {
     if (!userData) return userData;
 
     const hasPromoStart = userData.promoStart || userData._doc?.promoStart;
+
     if (hasPromoStart) return userData;
 
     const today = new Date();
@@ -78,36 +84,97 @@ exports.getUserDetails = async (req, res) => {
 
   try {
     const accountCounts = await getAccountCounts(estoreid);
-    let user = await User.findOne({
-      email,
-      estoreid: new ObjectId(estoreid),
-      resellid: new ObjectId(resellid),
-    })
-      .populate({
-        path: "estoreid",
-        populate: {
-          path: "country",
-        },
+
+    const cacheKey = `users:${estoreid}`;
+
+    let user = null;
+
+    const cachedUser = await redisClient.get(cacheKey);
+
+    if (cachedUser) {
+      const cachedUsers = JSON.parse(cachedUser);
+
+      user = cachedUsers.find((item) => {
+        return (
+          item.email === email &&
+          item.estoreid &&
+          item.estoreid._id?.toString() === estoreid.toString() &&
+          item.resellid?.toString() === resellid.toString()
+        );
+      });
+    }
+
+    if (!user) {
+      user = await User.findOne({
+        email,
+        estoreid: new ObjectId(estoreid),
+        resellid: new ObjectId(resellid),
       })
-      .select("-password -showPass -verifyCode")
-      .exec();
+        .populate({
+          path: "estoreid",
+          populate: {
+            path: "country",
+          },
+        })
+        .select("-password -showPass -verifyCode")
+        .lean()
+        .exec();
+
+      if (user) {
+        let usersToCache = [];
+
+        if (cachedUser) {
+          usersToCache = JSON.parse(cachedUser);
+        }
+
+        const existingIndex = usersToCache.findIndex(
+          (item) =>
+            item.email === email &&
+            item.estoreid?._id?.toString() === estoreid.toString() &&
+            item.resellid?.toString() === resellid.toString(),
+        );
+
+        if (existingIndex >= 0) {
+          usersToCache[existingIndex] = user;
+        } else {
+          usersToCache.push(user);
+        }
+
+        await redisClient.set(cacheKey, JSON.stringify(usersToCache), {
+          EX: 259200,
+        });
+      }
+    }
+
     if (user) {
       user = await ensurePromoStart(user);
+
       if (user.wishlist && user.wishlist.length > 0) {
         wishlist = await populateWishlist(user.wishlist, estoreid);
       }
+
       if (user.address && user.address.addiv3 && user.address.addiv3._id) {
         addiv3 = await populateAddress(user.address.addiv3, estoreid);
-        res.json({
-          ...user._doc,
+
+        return res.json({
+          ...user,
           wishlist,
-          address: { ...user.address, addiv3 },
+          address: {
+            ...user.address,
+            addiv3,
+          },
           accountCounts,
         });
-      } else {
-        res.json({ ...user._doc, wishlist, accountCounts });
       }
-    } else if (resellslug !== "branch") {
+
+      return res.json({
+        ...user,
+        wishlist,
+        accountCounts,
+      });
+    }
+
+    if (resellslug !== "branch") {
       let userWithReseller = await User.findOne({
         email,
         resellid: new ObjectId(resellid),
@@ -119,6 +186,7 @@ exports.getUserDetails = async (req, res) => {
           },
         })
         .select("-password -showPass -verifyCode")
+        .lean()
         .exec();
 
       if (
@@ -128,24 +196,34 @@ exports.getUserDetails = async (req, res) => {
       ) {
         const oldEstore = await Estore.findOne({
           _id: new ObjectId(resellid),
-        }).exec();
-        await User.updateOne(
-          {
-            email,
-          },
-          { $set: { estoreid: oldEstore._id } },
-        ).exec();
-        userWithReseller = { ...userWithReseller, estoreid: oldEstore };
+        })
+          .lean()
+          .exec();
+
+        if (oldEstore) {
+          await User.updateOne(
+            { email },
+            {
+              $set: {
+                estoreid: oldEstore._id,
+              },
+            },
+          ).exec();
+
+          userWithReseller.estoreid = oldEstore;
+        }
       }
 
       if (userWithReseller) {
         userWithReseller = await ensurePromoStart(userWithReseller);
+
         if (userWithReseller.wishlist && userWithReseller.wishlist.length > 0) {
           wishlist = await populateWishlist(
             userWithReseller.wishlist,
             estoreid,
           );
         }
+
         if (
           userWithReseller.address &&
           userWithReseller.address.addiv3 &&
@@ -155,17 +233,43 @@ exports.getUserDetails = async (req, res) => {
             userWithReseller.address.addiv3,
             estoreid,
           );
-          res.json({
-            ...userWithReseller._doc,
+
+          return res.json({
+            ...userWithReseller,
             wishlist,
-            address: { ...userWithReseller.address, addiv3 },
+            address: {
+              ...userWithReseller.address,
+              addiv3,
+            },
             accountCounts,
           });
-        } else {
-          res.json({ ...userWithReseller._doc, wishlist, accountCounts });
         }
-      } else {
-        let userWithEmail = await User.findOne({
+
+        return res.json({
+          ...userWithReseller,
+          wishlist,
+          accountCounts,
+        });
+      }
+
+      let userWithEmail = null;
+
+      const cachedUsersForEmail = await redisClient.get(cacheKey);
+
+      if (cachedUsersForEmail) {
+        const cachedUsers = JSON.parse(cachedUsersForEmail);
+
+        userWithEmail = cachedUsers.find((item) => {
+          return (
+            item.email === email &&
+            item.estoreid &&
+            item.estoreid._id?.toString() === estoreid.toString()
+          );
+        });
+      }
+
+      if (!userWithEmail) {
+        userWithEmail = await User.findOne({
           email,
           estoreid: new ObjectId(estoreid),
         })
@@ -176,41 +280,81 @@ exports.getUserDetails = async (req, res) => {
             },
           })
           .select("-password -showPass -verifyCode")
+          .lean()
           .exec();
+
         if (userWithEmail) {
-          userWithEmail = await ensurePromoStart(userWithEmail);
-          if (userWithEmail.wishlist && userWithEmail.wishlist.length > 0) {
-            wishlist = await populateWishlist(userWithEmail.wishlist, estoreid);
+          let usersToCache = [];
+
+          if (cachedUsersForEmail) {
+            usersToCache = JSON.parse(cachedUsersForEmail);
           }
-          if (
-            userWithEmail.address &&
-            userWithEmail.address.addiv3 &&
-            userWithEmail.address.addiv3._id
-          ) {
-            addiv3 = await populateAddress(
-              userWithEmail.address.addiv3,
-              estoreid,
-            );
-            res.json({
-              ...userWithEmail._doc,
-              wishlist,
-              address: { ...userWithEmail.address, addiv3 },
-              accountCounts,
-            });
+
+          const existingIndex = usersToCache.findIndex(
+            (item) =>
+              item.email === email &&
+              item.estoreid?._id?.toString() === estoreid.toString(),
+          );
+
+          if (existingIndex >= 0) {
+            usersToCache[existingIndex] = userWithEmail;
           } else {
-            res.json({ ...userWithEmail._doc, wishlist, accountCounts });
+            usersToCache.push(userWithEmail);
           }
-        } else {
-          res.json({
-            err: "The email doesn't exist in this store.",
+
+          await redisClient.set(cacheKey, JSON.stringify(usersToCache), {
+            EX: 259200,
           });
         }
       }
-    } else {
-      res.json({ err: "User is not found on this site" });
+
+      if (userWithEmail) {
+        userWithEmail = await ensurePromoStart(userWithEmail);
+
+        if (userWithEmail.wishlist && userWithEmail.wishlist.length > 0) {
+          wishlist = await populateWishlist(userWithEmail.wishlist, estoreid);
+        }
+
+        if (
+          userWithEmail.address &&
+          userWithEmail.address.addiv3 &&
+          userWithEmail.address.addiv3._id
+        ) {
+          addiv3 = await populateAddress(
+            userWithEmail.address.addiv3,
+            estoreid,
+          );
+
+          return res.json({
+            ...userWithEmail,
+            wishlist,
+            address: {
+              ...userWithEmail.address,
+              addiv3,
+            },
+            accountCounts,
+          });
+        }
+
+        return res.json({
+          ...userWithEmail,
+          wishlist,
+          accountCounts,
+        });
+      }
+
+      return res.json({
+        err: "The email doesn't exist in this store.",
+      });
     }
+
+    return res.json({
+      err: "User is not found on this site",
+    });
   } catch (error) {
-    res.json({ err: "Fetching user information fails. " + error.message });
+    return res.json({
+      err: "Fetching user information fails. " + error.message,
+    });
   }
 };
 
@@ -219,16 +363,15 @@ exports.getRaffleEntries = async (req, res) => {
   const estoreid = req.headers.estoreid;
 
   try {
-    const user = await User.findOne({
-      email,
-      estoreid: new ObjectId(estoreid),
-    }).exec();
+    const user = await getUserByEmail(email, estoreid);
+
     const raffles = await Raffle.find({
       owner: user._id,
       estoreid: new ObjectId(estoreid),
     })
       .populate("orderid")
       .exec();
+
     res.json(raffles);
   } catch (error) {
     res.json({ err: "Fetching raffle entries fails. " + error.message });
@@ -276,90 +419,215 @@ exports.getAllUsers = async (req, res) => {
   try {
     const { sortkey, sort, currentPage, pageSize, searchQuery } = req.body;
 
+    const page = Number(currentPage) || 1;
+    const limit = Number(pageSize) || 20;
+    const sortField = sortkey || "createdAt";
+    const sortOrder = Number(sort) || 1;
+    const search = searchQuery || "";
+
     const checkUser = await User.findOne({
       email,
       estoreid: new ObjectId(estoreid),
-    });
-
-    const searchObj = { estoreid: new ObjectId(estoreid) };
-
-    if (searchQuery) {
-      searchObj.$or = [
-        { name: { $regex: searchQuery, $options: "i" } },
-        { email: { $regex: searchQuery, $options: "i" } },
-        { phone: { $regex: searchQuery, $options: "i" } },
-        { address: { $regex: searchQuery, $options: "i" } },
-      ];
-    }
-
-    const estoreids = await Estore.aggregate([
-      {
-        $match: {
-          status: "active",
-          upgradeType: "2",
-          upStatus2: "Active",
-        },
-      },
-      {
-        $group: {
-          _id: "$_id",
-        },
-      },
-    ]);
-
-    const admins =
-      checkUser && checkUser.superAdmin
-        ? await User.find({
-            estoreid: { $in: estoreids.map((data) => data._id) },
-            role: "admin",
-          }).exec()
-        : await User.find({
-            estoreid: new ObjectId(estoreid),
-            role: "admin",
-          }).exec();
-    const moderators = await User.find({
-      estoreid: new ObjectId(estoreid),
-      role: "moderator",
-    }).exec();
-    const cashiers = await User.find({
-      estoreid: new ObjectId(estoreid),
-      role: "cashier",
-    }).exec();
-
-    let customers = await User.find({
-      ...searchObj,
-      role: "customer",
     })
-      .skip((currentPage - 1) * pageSize)
-      .sort({ [sortkey]: sort })
-      .limit(pageSize)
+      .select("superAdmin")
+      .lean()
       .exec();
 
-    if (customers.length < 1 && searchQuery) {
-      customers = await User.find({
-        name: { $regex: searchQuery, $options: "i" },
-        estoreid: new ObjectId(estoreid),
+    const adminCacheKey = `users:${estoreid}:admin`;
+    const moderatorCacheKey = `users:${estoreid}:moderator`;
+    const cashierCacheKey = `users:${estoreid}:cashier`;
+    const customerCacheKey = `users:${estoreid}:customer:${page}:${limit}:${sortField}:${sortOrder}:${search}`;
+
+    let admins;
+
+    if (checkUser && checkUser.superAdmin) {
+      const estoreids = await Estore.aggregate([
+        {
+          $match: {
+            status: "active",
+            upgradeType: "2",
+            upStatus2: "Active",
+          },
+        },
+        {
+          $group: {
+            _id: "$_id",
+          },
+        },
+      ]);
+
+      admins = await User.find({
+        estoreid: {
+          $in: estoreids.map((data) => data._id),
+        },
+        role: "admin",
       })
-        .skip((currentPage - 1) * pageSize)
-        .sort({ [sortkey]: sort })
-        .limit(pageSize)
+        .select("-password -showPass -verifyCode")
+        .sort({ createdAt: -1 })
+        .lean()
         .exec();
+    } else {
+      const cachedAdmins = await redisClient.get(adminCacheKey);
+
+      if (cachedAdmins) {
+        admins = JSON.parse(cachedAdmins);
+      } else {
+        admins = await User.find({
+          estoreid: new ObjectId(estoreid),
+          role: "admin",
+        })
+          .select("-password -showPass -verifyCode")
+          .sort({ createdAt: -1 })
+          .lean()
+          .exec();
+
+        await redisClient.set(adminCacheKey, JSON.stringify(admins), {
+          EX: 259200,
+        });
+      }
     }
 
-    const countCustomers = await User.find({
-      ...searchObj,
-      role: "customer",
-    }).exec();
+    let moderators;
 
-    res.json({
+    const cachedModerators = await redisClient.get(moderatorCacheKey);
+
+    if (cachedModerators) {
+      moderators = JSON.parse(cachedModerators);
+    } else {
+      moderators = await User.find({
+        estoreid: new ObjectId(estoreid),
+        role: "moderator",
+      })
+        .select("-password -showPass -verifyCode")
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec();
+
+      await redisClient.set(moderatorCacheKey, JSON.stringify(moderators), {
+        EX: 259200,
+      });
+    }
+
+    let cashiers;
+
+    const cachedCashiers = await redisClient.get(cashierCacheKey);
+
+    if (cachedCashiers) {
+      cashiers = JSON.parse(cachedCashiers);
+    } else {
+      cashiers = await User.find({
+        estoreid: new ObjectId(estoreid),
+        role: "cashier",
+      })
+        .select("-password -showPass -verifyCode")
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec();
+
+      await redisClient.set(cashierCacheKey, JSON.stringify(cashiers), {
+        EX: 259200,
+      });
+    }
+
+    let customers;
+    let countCustomers;
+
+    const cachedCustomers = await redisClient.get(customerCacheKey);
+
+    if (cachedCustomers) {
+      const cachedData = JSON.parse(cachedCustomers);
+
+      customers = cachedData.customers;
+      countCustomers = cachedData.count;
+    } else {
+      const searchObj = {
+        estoreid: new ObjectId(estoreid),
+        role: "customer",
+      };
+
+      if (search) {
+        searchObj.$or = [
+          {
+            name: {
+              $regex: search,
+              $options: "i",
+            },
+          },
+          {
+            email: {
+              $regex: search,
+              $options: "i",
+            },
+          },
+          {
+            phone: {
+              $regex: search,
+              $options: "i",
+            },
+          },
+          {
+            address: {
+              $regex: search,
+              $options: "i",
+            },
+          },
+        ];
+      }
+
+      customers = await User.find(searchObj)
+        .skip((page - 1) * limit)
+        .sort({
+          [sortField]: sortOrder,
+        })
+        .limit(limit)
+        .select("-password -showPass -verifyCode")
+        .lean()
+        .exec();
+
+      if (customers.length < 1 && search) {
+        customers = await User.find({
+          name: {
+            $regex: search,
+            $options: "i",
+          },
+          estoreid: new ObjectId(estoreid),
+          role: "customer",
+        })
+          .skip((page - 1) * limit)
+          .sort({
+            [sortField]: sortOrder,
+          })
+          .limit(limit)
+          .select("-password -showPass -verifyCode")
+          .lean()
+          .exec();
+      }
+
+      countCustomers = await User.countDocuments(searchObj);
+
+      await redisClient.set(
+        customerCacheKey,
+        JSON.stringify({
+          customers,
+          count: countCustomers,
+        }),
+        {
+          EX: 259200,
+        },
+      );
+    }
+
+    return res.json({
       admins,
       moderators,
       cashiers,
       customers,
-      count: countCustomers.length,
+      count: countCustomers,
     });
   } catch (error) {
-    res.json({ err: "Fetching users fails. " + error.message });
+    return res.json({
+      err: "Fetching users fails. " + error.message,
+    });
   }
 };
 
@@ -368,59 +636,113 @@ exports.createNewUser = async (req, res) => {
   const resellid = req.params.resellid;
 
   try {
-    const checkUser = await User.findOne({
-      email: req.body.email,
-      estoreid: new ObjectId(estoreid),
-      resellid: new ObjectId(resellid),
-    }).exec();
+    const cacheKey = `users:${estoreid}`;
+    let checkUser = null;
+    const cachedUsers = await redisClient.get(cacheKey);
+
+    if (cachedUsers) {
+      const users = JSON.parse(cachedUsers);
+
+      checkUser = users.find((user) => {
+        return (
+          user.email === req.body.email &&
+          user.estoreid?.toString() === estoreid.toString() &&
+          user.resellid?.toString() === resellid.toString()
+        );
+      });
+    }
+
+    if (!checkUser) {
+      checkUser = await User.findOne({
+        email: req.body.email,
+        estoreid: new ObjectId(estoreid),
+        resellid: new ObjectId(resellid),
+      }).exec();
+    }
 
     if (checkUser) {
-      res.json({ err: "The email address is already existing on this store" });
-    } else {
-      const user = new User(
-        req.body.refid
-          ? {
-              refid: new ObjectId(req.body.refid),
-              name: req.body.owner,
-              phone: req.body.phone,
-              email: req.body.email,
-              password: md5(req.body.password),
-              showPass: req.body.password,
-              role: req.body.role,
-              address: req.body.address,
-              estoreid: new ObjectId(estoreid),
-              resellid: new ObjectId(resellid),
-            }
-          : {
-              name: req.body.owner,
-              phone: req.body.phone,
-              email: req.body.email,
-              password: md5(req.body.password),
-              showPass: req.body.password,
-              role: req.body.role,
-              address: req.body.address,
-              estoreid: new ObjectId(estoreid),
-              resellid: new ObjectId(resellid),
-            },
-      );
-      await user.save();
-      const token = jwt.sign(
-        { email: req.body.email },
-        process.env.JWT_PRIVATE_KEY,
-      );
-
-      let refUser = {};
-      if (req.body.refid) {
-        refUser = await User.findOne({
-          _id: new ObjectId(req.body.refid),
-          role: "admin",
-        }).exec();
-      }
-
-      res.json({ user, token, refUser });
+      return res.json({
+        err: "The email address is already existing on this store",
+      });
     }
+
+    const userData = req.body.refid
+      ? {
+          refid: new ObjectId(req.body.refid),
+          name: req.body.owner,
+          phone: req.body.phone,
+          email: req.body.email,
+          password: md5(req.body.password),
+          showPass: req.body.password,
+          role: req.body.role,
+          address: req.body.address,
+          estoreid: new ObjectId(estoreid),
+          resellid: new ObjectId(resellid),
+        }
+      : {
+          name: req.body.owner,
+          phone: req.body.phone,
+          email: req.body.email,
+          password: md5(req.body.password),
+          showPass: req.body.password,
+          role: req.body.role,
+          address: req.body.address,
+          estoreid: new ObjectId(estoreid),
+          resellid: new ObjectId(resellid),
+        };
+
+    const user = new User(userData);
+
+    await user.save();
+
+    const latestCachedUsers = await redisClient.get(cacheKey);
+
+    if (latestCachedUsers) {
+      let users = JSON.parse(latestCachedUsers);
+
+      const newUser = user.toObject();
+
+      delete newUser.password;
+      delete newUser.showPass;
+      delete newUser.verifyCode;
+
+      users.push(newUser);
+
+      await redisClient.set(cacheKey, JSON.stringify(users), {
+        EX: 259200,
+      });
+
+      clearMultiItemsCache(estoreid, "users");
+    }
+
+    const token = jwt.sign(
+      {
+        email: req.body.email,
+      },
+      process.env.JWT_PRIVATE_KEY,
+    );
+
+    let refUser = {};
+
+    if (req.body.refid) {
+      refUser = await User.findOne({
+        _id: new ObjectId(req.body.refid),
+        role: "admin",
+      })
+        .select("-password -showPass -verifyCode")
+        .lean()
+        .exec();
+    }
+
+    return res.json({
+      user,
+      token,
+      refUser,
+    });
   } catch (error) {
-    res.json({ err: "Creating new user fails. " + error.message });
+    return res.json({
+      err: "Creating new user fails. " + error.message,
+    });
   }
 };
 
@@ -597,6 +919,9 @@ exports.updateUser = async (req, res) => {
       .select("-password -showPass");
 
     res.json(user);
+
+    clearOneItemCache(estoreid, "users");
+    clearMultiItemsCache(estoreid, "users");
   } catch (error) {
     res.json({ err: "Updating user fails. " + error.message });
   }
@@ -626,6 +951,9 @@ exports.updateCustomer = async (req, res) => {
     }
 
     res.json({ ok: true });
+
+    clearOneItemCache(estoreid, "users");
+    clearMultiItemsCache(estoreid, "users");
   } catch (error) {
     res.json({ err: "Updating customer fails. " + error.message });
   }
@@ -662,6 +990,8 @@ exports.verifyUserEmail = async (req, res) => {
         );
       }
       res.json(user);
+
+      clearOneItemCache(estoreid, "users");
     } else {
       res.json({
         err: "Sorry, the verification code you submitted is either incorrect or expired!",
@@ -692,6 +1022,8 @@ exports.changePassword = async (req, res) => {
     );
     if (user) {
       res.json(user);
+
+      clearOneItemCache(estoreid, "users");
     } else {
       res.json({ err: "The old password you have entered is not correct" });
     }
@@ -716,6 +1048,8 @@ exports.resetPassword = async (req, res) => {
       { new: true },
     );
     res.json(user);
+
+    clearOneItemCache(estoreid, "users");
   } catch (error) {
     res.json({ err: "Reseting password for a user fails. " + error.message });
   }
@@ -768,6 +1102,8 @@ exports.forgotPassword = async (req, res) => {
     }
     if (user) {
       res.json(user);
+
+      clearOneItemCache(estoreid, "users");
     } else {
       res.json({ err: "Change user password fails. No user was found" });
     }
@@ -837,6 +1173,9 @@ exports.importUsers = async (req, res) => {
       }
     }
     res.json({ ok: true });
+
+    clearOneItemCache(estoreid, "users");
+    clearMultiItemsCache(estoreid, "users");
   } catch (error) {
     res.json({ err: "Importing users failed. " + error.message });
   }
@@ -852,6 +1191,9 @@ exports.deleteUser = async (req, res) => {
       estoreid: new ObjectId(estoreid),
     });
     res.json(user);
+
+    clearOneItemCache(estoreid, "users");
+    clearMultiItemsCache(estoreid, "users");
   } catch (error) {
     res.json({ err: "Deleting user fails. " + error.message });
   }

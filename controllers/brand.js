@@ -4,37 +4,81 @@ const slugify = require("slugify");
 const Brand = require("../models/brand");
 const Product = require("../models/product");
 
+const { redisClient } = require("../config/redis");
+const { clearOneItemCache } = require("./redis/clearing");
+
 exports.getBrand = async (req, res) => {
   const braid = req.params.braid;
   const estoreid = req.headers.estoreid;
+  const redisKey = `brands:${estoreid}`;
+
   try {
-    const brand = await Brand.findOne({
-      _id: new ObjectId(braid),
+    let brands = await redisClient.get(redisKey);
+
+    if (brands) {
+      brands = JSON.parse(brands);
+    } else {
+      brands = await Brand.find({
+        estoreid: new ObjectId(estoreid),
+      })
+        .lean()
+        .exec();
+
+      await redisClient.set(redisKey, JSON.stringify(brands), {
+        EX: 604800,
+      });
+    }
+
+    const brand = brands.find((brand) => brand._id.toString() === braid);
+
+    if (!brand) {
+      return res.status(404).json({
+        err: "Brand not found",
+      });
+    }
+
+    const countProduct = await Product.countDocuments({
+      brand: new ObjectId(braid),
       estoreid: new ObjectId(estoreid),
     });
-    const countProduct = await Product.countDocuments({
-      brand: new ObjectId(brand._id),
-      estoreid: new ObjectId(estoreid),
-    }).exec();
+
     res.json({
-      ...brand._doc,
+      ...brand,
       itemcount: countProduct,
     });
   } catch (error) {
-    res.json({ err: "Getting brand fails. " + error.message });
+    res.json({
+      err: "Getting brand fails. " + error.message,
+    });
   }
 };
 
 exports.getBrands = async (req, res) => {
   const estoreid = req.headers.estoreid;
+  const redisKey = `brands:${estoreid}`;
+
   try {
-    let brands = await Brand.find({
+    const cachedBrands = await redisClient.get(redisKey);
+
+    if (cachedBrands) {
+      return res.json(JSON.parse(cachedBrands));
+    }
+
+    const brands = await Brand.find({
       estoreid: new ObjectId(estoreid),
-    }).exec();
+    })
+      .lean()
+      .exec();
+
+    await redisClient.set(redisKey, JSON.stringify(brands), {
+      EX: 604800,
+    });
 
     res.json(brands);
   } catch (error) {
-    res.json({ err: "Fetching brands fails. " + error.message });
+    res.json({
+      err: "Fetching brands fails. " + error.message,
+    });
   }
 };
 
@@ -95,6 +139,8 @@ exports.addBrand = async (req, res) => {
     const brand = new Brand({ name, slug, images, estoreid });
     await brand.save();
     res.json(brand);
+
+    clearOneItemCache(estoreid, "brands");
   } catch (error) {
     res.json({ err: "Adding brand fails. " + error.message });
   }
@@ -125,12 +171,14 @@ exports.updateBrand = async (req, res) => {
       },
     ).exec();
 
-    const countProduct = await Product.find({
-      brand: new ObjectId(braid),
+    const countProduct = await Product.countDocuments({
+      brand: new ObjectId(brand._id),
       estoreid: new ObjectId(estoreid),
     }).exec();
 
-    res.json({ ...brand._doc, itemcount: countProduct.length });
+    res.json({ ...brand._doc, itemcount: countProduct });
+
+    clearOneItemCache(estoreid, "brands");
   } catch (error) {
     res.json({ err: "Updating brand fails. " + error.message });
   }
@@ -185,6 +233,8 @@ exports.importBrands = async (req, res) => {
       }
     }
     res.json({ ok: true });
+
+    clearOneItemCache(estoreid, "brands");
   } catch (error) {
     res.json({ err: "Importing brands failed. " + error.message });
   }
@@ -198,7 +248,10 @@ exports.removeBrand = async (req, res) => {
       _id: new ObjectId(braid),
       estoreid: new ObjectId(estoreid),
     }).exec();
+
     res.json(brand);
+
+    clearOneItemCache(estoreid, "brands");
   } catch (error) {
     res.json({ err: "Deleting brand fails. " + error.message });
   }

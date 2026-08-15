@@ -4,6 +4,7 @@ const md5 = require("md5");
 
 const Country = require("../models/country");
 const User = require("../models/user");
+
 const { redisClient } = require("../config/redis");
 
 exports.getUserByEmail = async (email, estoreid) => {
@@ -19,11 +20,16 @@ exports.getUserByEmail = async (email, estoreid) => {
       }
     }
 
-    const user = await User.findOne({ email }).exec();
+    const user = await User.findOne({
+      email,
+      estoreid: new ObjectId(estoreid),
+    })
+      .lean()
+      .exec();
 
     if (user) {
       await redisClient.set(cacheKey, JSON.stringify(parsedData.concat(user)), {
-        EX: 604800,
+        EX: 259200,
       });
     }
 
@@ -114,10 +120,25 @@ exports.checkEmailExist = async (req, res) => {
 };
 
 exports.getCountries = async (req, res) => {
+  const cacheKey = "countries:all";
+
   try {
-    const countries = await Country.find().exec();
-    res.json(countries);
+    const cachedCountries = await redisClient.get(cacheKey);
+
+    if (cachedCountries) {
+      return res.json(JSON.parse(cachedCountries));
+    }
+
+    const countries = await Country.find({}).lean().exec();
+
+    await redisClient.set(cacheKey, JSON.stringify(countries), {
+      EX: 604800,
+    });
+
+    return res.json(countries);
   } catch (error) {
-    res.json({ err: "Fetching countries fails. " + error.message });
+    return res.json({
+      err: "Getting countries failed. " + error.message,
+    });
   }
 };

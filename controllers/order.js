@@ -8,12 +8,20 @@ const Cart = require("../models/cart");
 const Product = require("../models/product");
 const Order = require("../models/order");
 const Cashflow = require("../models/cashflow");
+
 const {
   createRaffle,
   checkOrderedProd,
   updateOrderedProd,
 } = require("./common");
 const { createCashflowEntry } = require("./cashflow");
+const { redisClient } = require("../config/redis");
+const { getUserByEmail } = require("./auth");
+const {
+  clearSubItemCache,
+  clearMultiItemsCache,
+  clearSubItemsCache,
+} = require("./redis/clearing");
 
 exports.userOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
@@ -21,28 +29,49 @@ exports.userOrder = async (req, res) => {
   const orderid = req.params.orderid;
 
   try {
-    const user = await User.findOne({ email }).exec();
-    if (user) {
-      const order = await Order.findOne({
-        _id: new ObjectId(orderid),
-        orderedBy: user._id,
-        estoreid: Object(estoreid),
-      })
-        .populate("estoreid", "_id name storeAddress")
-        .populate("products.product")
-        .populate("orderedBy")
-        .populate("paymentOption")
-        .exec();
-      if (order) {
-        res.json(order);
-      } else {
-        res.json({ err: "Sorry, there is no data on this order." });
-      }
-    } else {
-      res.json({ err: "Cannot fetch this order." });
+    const user = await getUserByEmail(email, estoreid);
+
+    if (!user) {
+      return res.json({
+        err: "Cannot fetch this order.",
+      });
     }
+
+    const cacheKey = `order:${estoreid}:${orderid}`;
+
+    const cachedOrder = await redisClient.get(cacheKey);
+
+    if (cachedOrder) {
+      return res.json(JSON.parse(cachedOrder));
+    }
+
+    const order = await Order.findOne({
+      _id: new ObjectId(orderid),
+      orderedBy: user._id,
+      estoreid: new ObjectId(estoreid),
+    })
+      .populate("estoreid", "_id name storeAddress")
+      .populate("products.product")
+      .populate("orderedBy")
+      .populate("paymentOption")
+      .lean()
+      .exec();
+
+    if (!order) {
+      return res.json({
+        err: "Sorry, there is no data on this order.",
+      });
+    }
+
+    await redisClient.set(cacheKey, JSON.stringify(order), {
+      EX: 86400,
+    });
+
+    res.json(order);
   } catch (error) {
-    res.json({ err: "Fetching an order failed. " + error.message });
+    res.json({
+      err: "Fetching an order failed. " + error.message,
+    });
   }
 };
 
@@ -51,26 +80,58 @@ exports.userAppOrder = async (req, res) => {
   const orderid = req.params.orderid;
 
   try {
-    const order = await Order.findOne({
-      _id: new ObjectId(orderid),
-      estoreid: Object(estoreid),
-    })
-      .populate("estoreid", "_id name storeAddress")
-      .populate("products.product")
-      .populate("orderedBy")
-      .populate("paymentOption")
-      .exec();
+    const cacheKey = `order:${estoreid}:${orderid}`;
+
+    let order = null;
+
+    const cachedOrder = await redisClient.get(cacheKey);
+
+    if (cachedOrder) {
+      order = JSON.parse(cachedOrder);
+    }
+
+    if (!order) {
+      if (!ObjectId.isValid(orderid)) {
+        return res.json({
+          err: "Sorry, there is no data on this order.",
+        });
+      }
+
+      order = await Order.findOne({
+        _id: new ObjectId(orderid),
+        estoreid: new ObjectId(estoreid),
+      })
+        .populate("estoreid", "_id name storeAddress")
+        .populate("products.product")
+        .populate("orderedBy")
+        .populate("paymentOption")
+        .lean()
+        .exec();
+
+      if (!order) {
+        return res.json({
+          err: "Sorry, there is no data on this order.",
+        });
+      }
+
+      await redisClient.set(cacheKey, JSON.stringify(order), {
+        EX: 86400, // 24 hours
+      });
+    }
+
     const token = jwt.sign(
       { email: order.orderedBy.email },
       process.env.JWT_PRIVATE_KEY,
     );
-    if (order) {
-      res.json({ order, token });
-    } else {
-      res.json({ err: "Sorry, there is no data on this order." });
-    }
+
+    res.json({
+      order,
+      token,
+    });
   } catch (error) {
-    res.json({ err: "Fetching an order failed. " + error.message });
+    res.json({
+      err: "Fetching an order failed. " + error.message,
+    });
   }
 };
 
@@ -78,26 +139,70 @@ exports.adminOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const warehouse = req.headers.warehouse;
   const orderid = req.params.orderid;
+  const email = req.user.email;
 
   try {
-    const order = await Order.findOne(
-      warehouse
-        ? { _id: new ObjectId(orderid), supplierid: Object(estoreid) }
-        : { _id: new ObjectId(orderid), estoreid: Object(estoreid) },
-    )
-      .populate("estoreid", "_id name storeAddress")
-      .populate("products.product")
-      .populate("orderedBy")
-      .populate("paymentOption")
-      .exec();
+    const user = await getUserByEmail(email, estoreid);
 
-    if (order) {
-      res.json(order);
-    } else {
-      res.json({ err: "Sorry, there is no data on this order." });
+    if (!user) {
+      return res.json({
+        err: "Cannot fetch this order.",
+      });
     }
+
+    const cacheKey = warehouse
+      ? `order:supplier:${estoreid}:${orderid}`
+      : `order:${estoreid}:${orderid}`;
+
+    let order = null;
+
+    const cachedOrder = await redisClient.get(cacheKey);
+
+    if (cachedOrder) {
+      order = JSON.parse(cachedOrder);
+    }
+
+    if (!order) {
+      if (!ObjectId.isValid(orderid)) {
+        return res.json({
+          err: "Sorry, there is no data on this order.",
+        });
+      }
+
+      const query = warehouse
+        ? {
+            _id: new ObjectId(orderid),
+            supplierid: new ObjectId(estoreid),
+          }
+        : {
+            _id: new ObjectId(orderid),
+            estoreid: new ObjectId(estoreid),
+          };
+
+      order = await Order.findOne(query)
+        .populate("estoreid", "_id name storeAddress")
+        .populate("products.product")
+        .populate("orderedBy")
+        .populate("paymentOption")
+        .lean()
+        .exec();
+
+      if (!order) {
+        return res.json({
+          err: "Sorry, there is no data on this order.",
+        });
+      }
+
+      await redisClient.set(cacheKey, JSON.stringify(order), {
+        EX: 86400,
+      });
+    }
+
+    res.json(order);
   } catch (error) {
-    res.json({ err: "Fetching an order failed. " + error.message });
+    res.json({
+      err: "Fetching an order failed. " + error.message,
+    });
   }
 };
 
@@ -107,43 +212,89 @@ exports.userOrders = async (req, res) => {
 
   try {
     const { sortkey, sort, currentPage, pageSize, searchQuery } = req.body;
-    const user = await User.findOne({ email }).exec();
-    const searchObj = { estoreid: new ObjectId(estoreid), orderedBy: user._id };
 
-    if (user) {
-      if (searchQuery) {
-        searchObj.$or = [
-          { orderCode: { $regex: searchQuery, $options: "i" } },
-          { orderedName: { $regex: searchQuery, $options: "i" } },
-        ];
-      }
+    const user = await getUserByEmail(email, estoreid);
 
-      const orders = await Order.find(searchObj)
-        .skip((currentPage - 1) * pageSize)
-        .sort({ [sortkey]: sort })
-        .limit(pageSize)
-        .populate("estoreid", "_id name storeAddress")
-        .populate("orderedBy", "_id")
-        .populate("paymentOption", "bankName")
-        .select(
-          "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid duedate createdAt",
-        )
-        .exec();
-
-      const countOrder = await Order.countDocuments(searchObj).exec();
-
-      res.json({ orders, count: countOrder });
-    } else {
-      res.json({ err: "Cannot fetch user orders." });
+    if (!user) {
+      return res.json({
+        err: "Cannot fetch user orders.",
+      });
     }
+
+    const cacheKey = [
+      `userOrders:${estoreid}:${user._id.toString()}`,
+      user._id.toString(),
+      currentPage,
+      pageSize,
+      sortkey || "_default",
+      sort || "_default",
+      searchQuery || "_empty",
+    ].join(":");
+
+    const cachedData = await redisClient.get(cacheKey);
+
+    if (cachedData) {
+      return res.json(JSON.parse(cachedData));
+    }
+
+    const searchObj = {
+      estoreid: new ObjectId(estoreid),
+      orderedBy: user._id,
+    };
+
+    if (searchQuery) {
+      searchObj.$or = [
+        {
+          orderCode: {
+            $regex: searchQuery,
+            $options: "i",
+          },
+        },
+        {
+          orderedName: {
+            $regex: searchQuery,
+            $options: "i",
+          },
+        },
+      ];
+    }
+
+    const orders = await Order.find(searchObj)
+      .skip((currentPage - 1) * pageSize)
+      .sort({ [sortkey]: sort })
+      .limit(pageSize)
+      .populate("estoreid", "_id name storeAddress")
+      .populate("orderedBy", "_id")
+      .populate("paymentOption", "bankName")
+      .select(
+        "_id orderCode orderedName cartTotal delfee servefee discount addDiscount orderType orderStatus deliveryPrefer deliverInstruct estoreid duedate createdAt",
+      )
+      .lean()
+      .exec();
+
+    const countOrder = await Order.countDocuments(searchObj).exec();
+
+    const result = {
+      orders,
+      count: countOrder,
+    };
+
+    await redisClient.set(cacheKey, JSON.stringify(result), {
+      EX: 86400,
+    });
+
+    res.json(result);
   } catch (error) {
-    res.json({ err: "Fetching orders failed. " + error.message });
+    res.json({
+      err: "Fetching orders failed. " + error.message,
+    });
   }
 };
 
 exports.adminOrders = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
+
   let orders = [];
   let totalCredit = {};
   let collectibles = 0;
@@ -161,7 +312,37 @@ exports.adminOrders = async (req, res) => {
       type,
     } = req.body;
 
-    const user = await User.findOne({ email }).exec();
+    const user = await getUserByEmail(email, estoreid);
+
+    if (!user) {
+      return res.json({
+        err: "Cannot fetch user information.",
+      });
+    }
+
+    const cacheKey = [
+      `adminOrders:${estoreid}`,
+      user._id.toString(),
+      user.role || "_norole",
+      type || "_all",
+      currentPage || 1,
+      pageSize || 20,
+      sortkey || "_default",
+      sort ?? "_default",
+      searchQuery || "_empty",
+      status || "_allstatus",
+      orderedBy || "_allusers",
+      sales?.type || "_nosales",
+      sales?.dateStart || "_nodate",
+      sales?.endDate || "_nodate",
+    ].join(":");
+
+    const cachedData = await redisClient.get(cacheKey);
+
+    if (cachedData) {
+      return res.json(JSON.parse(cachedData));
+    }
+
     const searchObj = {};
 
     if (user.role === "cashier") {
@@ -170,33 +351,55 @@ exports.adminOrders = async (req, res) => {
       } else {
         searchObj.estoreid = new ObjectId(estoreid);
       }
+
       searchObj.createdBy = user._id;
+
       if (searchQuery) {
         searchObj.$or = [
-          { orderCode: { $regex: searchQuery, $options: "i" } },
-          { orderedName: { $regex: searchQuery, $options: "i" } },
+          {
+            orderCode: {
+              $regex: searchQuery,
+              $options: "i",
+            },
+          },
+          {
+            orderedName: {
+              $regex: searchQuery,
+              $options: "i",
+            },
+          },
         ];
       }
-      if (status !== "All Status") searchObj.orderStatus = status;
-      if (orderedBy) searchObj.orderedBy = new ObjectId(orderedBy);
 
-      if (sales && sales.type && sales.type === "sales") {
+      if (status !== "All Status") {
+        searchObj.orderStatus = status;
+      }
+
+      if (orderedBy) {
+        searchObj.orderedBy = new ObjectId(orderedBy);
+      }
+
+      if (sales && sales.type === "sales") {
         const startDate = new Date(
           new Date(sales.dateStart).setHours(
             new Date(sales.dateStart).getHours() + 8,
           ),
         );
+
         const endDate = new Date(
           new Date(sales.endDate).setHours(
             new Date(sales.endDate).getHours() + 8,
           ),
         );
+
         startDate.setDate(startDate.getDate() - 1);
+
         searchObj.createdAt = {
-          $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
+          $gte: new Date(new Date(startDate).setHours(16, 0, 0)),
           $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
         };
       }
+
       orders = await Order.find(searchObj)
         .skip((currentPage - 1) * pageSize)
         .sort({ [sortkey]: sort })
@@ -207,6 +410,7 @@ exports.adminOrders = async (req, res) => {
         .populate("estoreid", "_id name storeAddress")
         .populate("orderedBy")
         .populate("paymentOption")
+        .lean()
         .exec();
     } else {
       if (type === "purchase") {
@@ -214,32 +418,53 @@ exports.adminOrders = async (req, res) => {
       } else {
         searchObj.estoreid = new ObjectId(estoreid);
       }
+
       if (searchQuery) {
         searchObj.$or = [
-          { orderCode: { $regex: searchQuery, $options: "i" } },
-          { orderedName: { $regex: searchQuery, $options: "i" } },
+          {
+            orderCode: {
+              $regex: searchQuery,
+              $options: "i",
+            },
+          },
+          {
+            orderedName: {
+              $regex: searchQuery,
+              $options: "i",
+            },
+          },
         ];
       }
-      if (status !== "All Status") searchObj.orderStatus = status;
-      if (orderedBy) searchObj.orderedBy = new ObjectId(orderedBy);
 
-      if (sales && sales.type && sales.type === "sales") {
+      if (status !== "All Status") {
+        searchObj.orderStatus = status;
+      }
+
+      if (orderedBy) {
+        searchObj.orderedBy = new ObjectId(orderedBy);
+      }
+
+      if (sales && sales.type === "sales") {
         const startDate = new Date(
           new Date(sales.dateStart).setHours(
             new Date(sales.dateStart).getHours() + 8,
           ),
         );
+
         const endDate = new Date(
           new Date(sales.endDate).setHours(
             new Date(sales.endDate).getHours() + 8,
           ),
         );
+
         startDate.setDate(startDate.getDate() - 1);
+
         searchObj.createdAt = {
-          $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
+          $gte: new Date(new Date(startDate).setHours(16, 0, 0)),
           $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
         };
       }
+
       orders = await Order.find(searchObj)
         .skip((currentPage - 1) * pageSize)
         .sort({ [sortkey]: sort })
@@ -250,6 +475,7 @@ exports.adminOrders = async (req, res) => {
         .populate("orderedBy")
         .populate("estoreid", "_id name storeAddress")
         .populate("paymentOption")
+        .lean()
         .exec();
     }
 
@@ -257,29 +483,52 @@ exports.adminOrders = async (req, res) => {
 
     if (status === "Credit") {
       totalCredit = await Order.aggregate([
-        { $match: searchObj },
+        {
+          $match: searchObj,
+        },
         {
           $group: {
             _id: null,
-            sum_cartTotal: { $sum: "$cartTotal" },
-            sum_delfee: { $sum: "$delfee" },
-            sum_discount: { $sum: "$discount" },
-            sum_addDiscount: { $sum: "$addDiscount" },
+            sum_cartTotal: {
+              $sum: "$cartTotal",
+            },
+            sum_delfee: {
+              $sum: "$delfee",
+            },
+            sum_discount: {
+              $sum: "$discount",
+            },
+            sum_addDiscount: {
+              $sum: "$addDiscount",
+            },
           },
         },
       ]);
+
       if (totalCredit && totalCredit[0]) {
         collectibles =
-          parseFloat(totalCredit[0].sum_cartTotal) +
-          parseFloat(totalCredit[0].sum_delfee) +
-          parseFloat(totalCredit[0].sum_discount) +
-          parseFloat(totalCredit[0].sum_addDiscount);
+          parseFloat(totalCredit[0].sum_cartTotal || 0) +
+          parseFloat(totalCredit[0].sum_delfee || 0) +
+          parseFloat(totalCredit[0].sum_discount || 0) +
+          parseFloat(totalCredit[0].sum_addDiscount || 0);
       }
     }
 
-    res.json({ orders, count: countOrder, collectibles });
+    const result = {
+      orders,
+      count: countOrder,
+      collectibles,
+    };
+
+    await redisClient.set(cacheKey, JSON.stringify(result), {
+      EX: 86400,
+    });
+
+    res.json(result);
   } catch (error) {
-    res.json({ err: "Fetching orders failed. " + error.message });
+    res.json({
+      err: "Fetching orders failed. " + error.message,
+    });
   }
 };
 
@@ -287,39 +536,66 @@ exports.adminSales = async (req, res) => {
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
   const dates = req.body.dates;
+
   let capital = 0;
   let orders = [];
 
-  const startDate = new Date(
-    new Date(dates.dateStart).setHours(
-      new Date(dates.dateStart).getHours() + 8,
-    ),
-  );
-  const endDate = new Date(
-    new Date(dates.endDate).setHours(new Date(dates.endDate).getHours() + 8),
-  );
-
-  startDate.setDate(startDate.getDate() - 1);
-
   try {
-    const user = await User.findOne({ email }).exec();
+    const user = await getUserByEmail(email, estoreid);
+
+    if (!user) {
+      return res.json({
+        err: "Cannot fetch user information.",
+      });
+    }
+
+    const cacheKey = [
+      `adminSales:${estoreid}`,
+      user.role || "_norole",
+      user.role === "cashier" ? user._id.toString() : "_allusers",
+      dates?.dateStart || "_nodate",
+      dates?.endDate || "_nodate",
+    ].join(":");
+
+    const cachedData = await redisClient.get(cacheKey);
+
+    if (cachedData) {
+      return res.json(JSON.parse(cachedData));
+    }
+
+    const startDate = new Date(
+      new Date(dates.dateStart).setHours(
+        new Date(dates.dateStart).getHours() + 8,
+      ),
+    );
+
+    const endDate = new Date(
+      new Date(dates.endDate).setHours(new Date(dates.endDate).getHours() + 8),
+    );
+
+    startDate.setDate(startDate.getDate() - 1);
+
     const buildDateKey = (dateValue) => {
       const year = dateValue.getUTCFullYear();
       const month = `${dateValue.getUTCMonth() + 1}`.padStart(2, "0");
       const day = `${dateValue.getUTCDate()}`.padStart(2, "0");
+
       return `${year}-${month}-${day}`;
     };
 
     const rangeDates = [];
+
     const dateCursor = new Date(
       new Date(dates.dateStart).setHours(new Date(dates.dateStart).getHours()),
     );
+
     const dateLimit = new Date(
       new Date(dates.endDate).setHours(new Date(dates.endDate).getHours()),
     );
 
     while (dateCursor <= dateLimit) {
       rangeDates.push(buildDateKey(dateCursor));
+
       dateCursor.setUTCDate(dateCursor.getUTCDate() + 1);
     }
 
@@ -335,26 +611,25 @@ exports.adminSales = async (req, res) => {
       return accumulator;
     }, {});
 
+    const orderQuery = {
+      estoreid: new ObjectId(estoreid),
+      orderStatus: "Completed",
+      createdAt: {
+        $gte: new Date(new Date(startDate).setHours(16, 0, 0)),
+        $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
+      },
+    };
+
     if (user.role === "cashier") {
-      orders = await Order.find({
-        estoreid: Object(estoreid),
-        orderStatus: "Completed",
-        createdBy: user._id,
-        createdAt: {
-          $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
-          $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
-        },
-      }).exec();
-    } else {
-      orders = await Order.find({
-        estoreid: Object(estoreid),
-        orderStatus: "Completed",
-        createdAt: {
-          $gte: new Date(new Date(startDate).setHours(16, 0o0, 0o0)),
-          $lte: new Date(new Date(endDate).setHours(15, 59, 59)),
-        },
-      }).exec();
+      orderQuery.createdBy = user._id;
     }
+
+    orders = await Order.find(orderQuery)
+      .select(
+        "products.supplierPrice products.count cartTotal delfee discount addDiscount createdAt",
+      )
+      .lean()
+      .exec();
 
     let cartTotals = 0;
     let delfees = 0;
@@ -367,10 +642,12 @@ exports.adminSales = async (req, res) => {
           (value.supplierPrice ? value.supplierPrice * value.count : 0)
         );
       }, 0);
-      const orderCartTotal = order.cartTotal ? order.cartTotal : 0;
-      const orderDelfee = order.delfee ? order.delfee : 0;
-      const orderDiscount = order.discount ? order.discount : 0;
-      const orderAddDiscount = order.addDiscount ? order.addDiscount : 0;
+
+      const orderCartTotal = order.cartTotal || 0;
+      const orderDelfee = order.delfee || 0;
+      const orderDiscount = order.discount || 0;
+      const orderAddDiscount = order.addDiscount || 0;
+
       const orderTotalDiscount = orderDiscount + orderAddDiscount;
 
       capital += orderCapital;
@@ -381,12 +658,16 @@ exports.adminSales = async (req, res) => {
       const shiftedCreatedAt = new Date(
         new Date(order.createdAt).getTime() + 8 * 60 * 60 * 1000,
       );
+
       const dayKey = buildDateKey(shiftedCreatedAt);
 
       if (dailySalesMap[dayKey]) {
         dailySalesMap[dayKey].capital += orderCapital;
+
         dailySalesMap[dayKey].cartTotals += orderCartTotal;
+
         dailySalesMap[dayKey].delfees += orderDelfee;
+
         dailySalesMap[dayKey].discounts += orderTotalDiscount;
       }
     });
@@ -399,6 +680,7 @@ exports.adminSales = async (req, res) => {
         delfees: 0,
         discounts: 0,
       };
+
       const gross = daySales.cartTotals + daySales.delfees - daySales.discounts;
 
       return {
@@ -408,9 +690,23 @@ exports.adminSales = async (req, res) => {
       };
     });
 
-    res.json({ capital, cartTotals, delfees, discounts, dailySales });
+    const result = {
+      capital,
+      cartTotals,
+      delfees,
+      discounts,
+      dailySales,
+    };
+
+    await redisClient.set(cacheKey, JSON.stringify(result), {
+      EX: 86400,
+    });
+
+    res.json(result);
   } catch (error) {
-    res.json({ err: "Fetching orders failed. " + error.message });
+    res.json({
+      err: "Fetching orders failed. " + error.message,
+    });
   }
 };
 
@@ -421,234 +717,170 @@ exports.updateCart = async (req, res) => {
   let products = [];
 
   try {
-    const user = await User.findOne({ email }).exec();
-    if (user) {
-      let showWaiting = false;
-      let waitingProduct = { _id: "", title: "", quantity: 0 };
-      for (let i = 0; i < cart.length; i++) {
-        let object = {};
+    const user = await getUserByEmail(email, estoreid);
 
-        object.product = cart[i]._id;
-        object.count = cart[i].count;
-        object.excess = cart[i].excess ? true : false;
-
-        const productFromDb = await Product.findOne({
-          _id: new ObjectId(cart[i]._id),
-          estoreid: new ObjectId(estoreid),
-        }).exec();
-        object.supplierPrice = cart[i].excess
-          ? cart[i].supplierPrice
-          : productFromDb.supplierPrice;
-        let price = 0;
-        if (cart[i].priceChange || cart[i].excess) {
-          price = cart[i].price;
-        } else {
-          if (
-            (user.role === "admin" || user.wholesale) &&
-            productFromDb.wholesale &&
-            productFromDb.wholesale.length > 0
-          ) {
-            const wholesales = productFromDb.wholesale.filter(
-              (wsale) => wsale.wcount <= cart[i].count,
-            );
-            if (wholesales.length > 0) {
-              const largestCount = Math.max(
-                ...wholesales.map((large) => large.wcount),
-              );
-              const largestWholesale = wholesales.filter(
-                (wsale) => wsale.wcount === largestCount,
-              );
-              if (largestWholesale[0] && largestWholesale[0].wprice) {
-                price = largestWholesale[0].wprice;
-              } else {
-                price = productFromDb.price;
-              }
-            } else {
-              price = productFromDb.price;
-            }
-          } else {
-            price = productFromDb.price;
-          }
-        }
-        object.price = price;
-        cart[i] = { ...cart[i], price };
-
-        if (
-          productFromDb &&
-          productFromDb.segregate &&
-          productFromDb.quantity < object.count
-        ) {
-          object.excessCount =
-            parseFloat(object.count) - parseFloat(productFromDb.quantity);
-        }
-
-        products.push(object);
-
-        if (
-          !cart[i].excess &&
-          !productFromDb.segregate &&
-          (!productFromDb.quantity || productFromDb.quantity < object.count)
-        ) {
-          waitingProduct = {
-            ...productFromDb._doc,
-            excessCount:
-              parseFloat(object.count) - parseFloat(productFromDb.quantity),
-          };
-          showWaiting = true;
-        }
-
-        if (
-          !cart[i].excess &&
-          productFromDb.segregate &&
-          productFromDb &&
-          productFromDb.waiting &&
-          productFromDb.waiting._id &&
-          (!productFromDb.quantity || productFromDb.quantity < object.count)
-        ) {
-          waitingProduct = {
-            ...productFromDb._doc,
-            excessCount:
-              parseFloat(object.count) - parseFloat(productFromDb.quantity),
-          };
-          showWaiting = true;
-        }
-
-        const newQuantity =
-          productFromDb &&
-          productFromDb.waiting &&
-          productFromDb.waiting.newQuantity
-            ? productFromDb.waiting.newQuantity
-            : 0;
-
-        if (
-          cart[i].excess &&
-          !productFromDb.segregate &&
-          newQuantity < object.count
-        ) {
-          waitingProduct = {
-            ...cart[i],
-            quantity: newQuantity,
-          };
-          showWaiting = false;
-        }
-      }
-
-      if (!waitingProduct._id) {
-        let cartTotal = 0;
-        for (let i = 0; i < products.length; i++) {
-          products[i].product = new ObjectId(products[i].product);
-          cartTotal = cartTotal + products[i].price * products[i].count;
-        }
-
-        await Cart.deleteMany({
-          orderedBy: user._id,
-          estoreid: new ObjectId(estoreid),
-        }).exec();
-
-        Cart.collection.insertOne({
-          estoreid: new ObjectId(estoreid),
-          products,
-          cartTotal,
-          orderedBy: user._id,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          __v: 0,
-        });
-
-        res.json({ cart });
-      } else {
-        res.json({
-          err:
-            waitingProduct.title +
-            " with price @ " +
-            waitingProduct.price +
-            " has " +
-            waitingProduct.quantity +
-            " in stock only",
-          waitingProduct: showWaiting ? waitingProduct : {},
-        });
-      }
-    } else {
-      res.json({ err: "Cannot fetch the cart details." });
+    if (!user) {
+      return res.json({
+        err: "Cannot fetch the cart details.",
+      });
     }
-  } catch (error) {
-    res.json({ err: "Fetching cart fails. " + error.message });
-  }
-};
 
-exports.updateCartPurchase = async (req, res) => {
-  const { cart } = req.body;
-  const estoreid = req.headers.estoreid;
-  const email = req.user.email;
-  let products = [];
+    const cacheKey = `products:${estoreid}`;
+    const cachedData = await redisClient.get(cacheKey);
+    let cachedProducts = [];
 
-  try {
-    const user = await User.findOne({ email }).exec();
-    if (user) {
-      for (let i = 0; i < cart.length; i++) {
-        let object = {};
+    if (cachedData) {
+      cachedProducts = JSON.parse(cachedData).products || [];
+    }
 
-        object.product = cart[i]._id;
-        object.count = cart[i].count;
-        object.excess = cart[i].excess ? true : false;
+    const productMap = new Map(
+      cachedProducts
+        .filter((product) => product && product._id)
+        .map((product) => [product._id.toString(), product]),
+    );
 
-        const productFromDb = await Product.findOne({
-          _id: new ObjectId(cart[i]._id),
+    let showWaiting = false;
+
+    let waitingProduct = {
+      _id: "",
+      title: "",
+      quantity: 0,
+    };
+
+    for (let i = 0; i < cart.length; i++) {
+      let object = {};
+
+      object.product = cart[i]._id;
+      object.count = cart[i].count;
+      object.excess = cart[i].excess ? true : false;
+
+      const productId = cart[i]._id;
+
+      let productFromDb = productMap.get(productId.toString());
+
+      if (!productFromDb && ObjectId.isValid(productId)) {
+        productFromDb = await Product.findOne({
+          _id: new ObjectId(productId),
           estoreid: new ObjectId(estoreid),
         }).exec();
-        object.supplierPrice = cart[i].excess
-          ? cart[i].supplierPrice
-          : productFromDb.supplierPrice;
-        let price = 0;
-        if (cart[i].priceChange || cart[i].excess) {
-          price = cart[i].price;
-        } else {
-          if (
-            (user.role === "admin" || user.wholesale) &&
-            productFromDb.wholesale &&
-            productFromDb.wholesale.length > 0
-          ) {
-            const wholesales = productFromDb.wholesale.filter(
-              (wsale) => wsale.wcount <= cart[i].count,
+      }
+
+      if (!productFromDb) {
+        return res.json({
+          err: "One of the products in your cart no longer exists.",
+        });
+      }
+
+      object.supplierPrice = cart[i].excess
+        ? cart[i].supplierPrice
+        : productFromDb.supplierPrice;
+
+      let price = 0;
+
+      if (cart[i].priceChange || cart[i].excess) {
+        price = cart[i].price;
+      } else {
+        if (
+          (user.role === "admin" || user.wholesale) &&
+          productFromDb.wholesale &&
+          productFromDb.wholesale.length > 0
+        ) {
+          const wholesales = productFromDb.wholesale.filter(
+            (wsale) => wsale.wcount <= cart[i].count,
+          );
+
+          if (wholesales.length > 0) {
+            const largestCount = Math.max(
+              ...wholesales.map((large) => large.wcount),
             );
-            if (wholesales.length > 0) {
-              const largestCount = Math.max(
-                ...wholesales.map((large) => large.wcount),
-              );
-              const largestWholesale = wholesales.filter(
-                (wsale) => wsale.wcount === largestCount,
-              );
-              if (largestWholesale[0] && largestWholesale[0].wprice) {
-                price = largestWholesale[0].wprice;
-              } else {
-                price = productFromDb.price;
-              }
+
+            const largestWholesale = wholesales.find(
+              (wsale) => wsale.wcount === largestCount,
+            );
+
+            if (largestWholesale && largestWholesale.wprice) {
+              price = largestWholesale.wprice;
             } else {
               price = productFromDb.price;
             }
           } else {
             price = productFromDb.price;
           }
+        } else {
+          price = productFromDb.price;
         }
-        object.price = price;
-        cart[i] = { ...cart[i], price };
-
-        if (
-          productFromDb &&
-          productFromDb.segregate &&
-          productFromDb.quantity < object.count
-        ) {
-          object.excessCount =
-            parseFloat(object.count) - parseFloat(productFromDb.quantity);
-        }
-
-        products.push(object);
       }
 
+      object.price = price;
+
+      cart[i] = {
+        ...cart[i],
+        price,
+      };
+
+      if (productFromDb.segregate && productFromDb.quantity < object.count) {
+        object.excessCount =
+          parseFloat(object.count) - parseFloat(productFromDb.quantity);
+      }
+
+      products.push(object);
+
+      if (
+        !cart[i].excess &&
+        !productFromDb.segregate &&
+        (!productFromDb.quantity || productFromDb.quantity < object.count)
+      ) {
+        waitingProduct = {
+          ...(productFromDb._doc || productFromDb),
+          excessCount:
+            parseFloat(object.count) - parseFloat(productFromDb.quantity || 0),
+        };
+
+        showWaiting = true;
+      }
+
+      if (
+        !cart[i].excess &&
+        productFromDb.segregate &&
+        productFromDb.waiting &&
+        productFromDb.waiting._id &&
+        (!productFromDb.quantity || productFromDb.quantity < object.count)
+      ) {
+        waitingProduct = {
+          ...(productFromDb._doc || productFromDb),
+          excessCount:
+            parseFloat(object.count) - parseFloat(productFromDb.quantity || 0),
+        };
+
+        showWaiting = true;
+      }
+
+      const newQuantity =
+        productFromDb.waiting && productFromDb.waiting.newQuantity
+          ? productFromDb.waiting.newQuantity
+          : 0;
+
+      if (
+        cart[i].excess &&
+        !productFromDb.segregate &&
+        newQuantity < object.count
+      ) {
+        waitingProduct = {
+          ...cart[i],
+          quantity: newQuantity,
+        };
+
+        showWaiting = false;
+      }
+    }
+
+    if (!waitingProduct._id) {
       let cartTotal = 0;
+
       for (let i = 0; i < products.length; i++) {
         products[i].product = new ObjectId(products[i].product);
-        cartTotal = cartTotal + products[i].price * products[i].count;
+
+        cartTotal += products[i].price * products[i].count;
       }
 
       await Cart.deleteMany({
@@ -656,7 +888,7 @@ exports.updateCartPurchase = async (req, res) => {
         estoreid: new ObjectId(estoreid),
       }).exec();
 
-      Cart.collection.insertOne({
+      await Cart.collection.insertOne({
         estoreid: new ObjectId(estoreid),
         products,
         cartTotal,
@@ -666,12 +898,172 @@ exports.updateCartPurchase = async (req, res) => {
         __v: 0,
       });
 
-      res.json({ cart });
-    } else {
-      res.json({ err: "Cannot fetch the cart details." });
+      return res.json({ cart });
     }
+
+    return res.json({
+      err:
+        waitingProduct.title +
+        " with price @ " +
+        waitingProduct.price +
+        " has " +
+        waitingProduct.quantity +
+        " in stock only",
+
+      waitingProduct: showWaiting ? waitingProduct : {},
+    });
   } catch (error) {
-    res.json({ err: "Fetching cart fails. " + error.message });
+    res.json({
+      err: "Fetching cart fails. " + error.message,
+    });
+  }
+};
+
+exports.updateCartPurchase = async (req, res) => {
+  const { cart } = req.body;
+  const estoreid = req.headers.estoreid;
+  const email = req.user.email;
+
+  let products = [];
+
+  try {
+    const user = await getUserByEmail(email, estoreid);
+
+    if (!user) {
+      return res.json({
+        err: "Cannot fetch the cart details.",
+      });
+    }
+
+    const cacheKey = `products:${estoreid}`;
+
+    const cachedData = await redisClient.get(cacheKey);
+
+    let cachedProducts = [];
+
+    if (cachedData) {
+      cachedProducts = JSON.parse(cachedData).products || [];
+    }
+
+    const productMap = new Map(
+      cachedProducts
+        .filter((product) => product && product._id)
+        .map((product) => [product._id.toString(), product]),
+    );
+
+    for (let i = 0; i < cart.length; i++) {
+      const cartItem = cart[i];
+
+      const productId = cartItem._id;
+
+      let productFromDb = productMap.get(productId.toString());
+
+      if (!productFromDb && ObjectId.isValid(productId)) {
+        productFromDb = await Product.findOne({
+          _id: new ObjectId(productId),
+          estoreid: new ObjectId(estoreid),
+        })
+          .select("_id price supplierPrice wholesale quantity segregate")
+          .lean()
+          .exec();
+      }
+
+      if (!productFromDb) {
+        return res.json({
+          err: "One of the products in your cart no longer exists.",
+        });
+      }
+
+      const object = {
+        product: productId,
+        count: cartItem.count,
+        excess: cartItem.excess ? true : false,
+      };
+
+      object.supplierPrice = cartItem.excess
+        ? cartItem.supplierPrice
+        : productFromDb.supplierPrice;
+
+      let price = 0;
+
+      if (cartItem.priceChange || cartItem.excess) {
+        price = cartItem.price;
+      } else if (
+        (user.role === "admin" || user.wholesale) &&
+        productFromDb.wholesale &&
+        productFromDb.wholesale.length > 0
+      ) {
+        let largestWholesale = null;
+
+        for (const wholesale of productFromDb.wholesale) {
+          if (wholesale.wcount <= cartItem.count) {
+            if (
+              !largestWholesale ||
+              wholesale.wcount > largestWholesale.wcount
+            ) {
+              largestWholesale = wholesale;
+            }
+          }
+        }
+
+        if (largestWholesale && largestWholesale.wprice) {
+          price = largestWholesale.wprice;
+        } else {
+          price = productFromDb.price;
+        }
+      } else {
+        price = productFromDb.price;
+      }
+
+      object.price = price;
+
+      cart[i] = {
+        ...cartItem,
+        price,
+      };
+
+      if (
+        productFromDb.segregate &&
+        Number(productFromDb.quantity) < Number(object.count)
+      ) {
+        object.excessCount =
+          Number(object.count) - Number(productFromDb.quantity);
+      }
+
+      products.push(object);
+    }
+
+    const cartTotal = products.reduce((total, product) => {
+      return total + Number(product.price || 0) * Number(product.count || 0);
+    }, 0);
+
+    products = products.map((product) => ({
+      ...product,
+      product: new ObjectId(product.product),
+    }));
+
+    await Cart.deleteMany({
+      orderedBy: user._id,
+      estoreid: new ObjectId(estoreid),
+    }).exec();
+
+    await Cart.collection.insertOne({
+      estoreid: new ObjectId(estoreid),
+      products,
+      cartTotal,
+      orderedBy: user._id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      __v: 0,
+    });
+
+    return res.json({
+      cart,
+    });
+  } catch (error) {
+    return res.json({
+      err: "Fetching cart fails. " + error.message,
+    });
   }
 };
 
@@ -781,7 +1173,7 @@ exports.saveCartOrder = async (req, res) => {
   const customerEmail = req.body.customerEmail;
 
   try {
-    let user = await User.findOne({ email }).exec();
+    let user = await getUserByEmail(email, estoreid);
     let checkUser = {};
 
     if (customerName) {
@@ -902,6 +1294,12 @@ exports.saveCartOrder = async (req, res) => {
         ) {
           await updateOrderedProd(order.products, estoreid, true);
         }
+
+        clearMultiItemsCache(estoreid, "adminOrders");
+        if (checkUser && checkUser._id)
+          clearSubItemsCache(checkUser._id.toString(), estoreid, "userOrders");
+        if (user && user._id)
+          clearSubItemsCache(user._id.toString(), estoreid, "userOrders");
       } else {
         res.json({ err: "Cannot save the order." });
       }
@@ -941,7 +1339,7 @@ exports.saveCartPurchase = async (req, res) => {
   const orderStatus = "For Purchase";
 
   try {
-    let user = await User.findOne({ email }).exec();
+    let user = await getUserByEmail(email, estoreid);
     let checkUser = {};
 
     if (customerName) {
@@ -1049,6 +1447,12 @@ exports.saveCartPurchase = async (req, res) => {
       ) {
         await updateOrderedProd(order.products, estoreid, true);
       }
+
+      clearMultiItemsCache(estoreid, "adminOrders");
+      if (checkUser && checkUser._id)
+        clearSubItemsCache(checkUser._id.toString(), estoreid, "userOrders");
+      if (user && user._id)
+        clearSubItemsCache(user._id.toString(), estoreid, "userOrders");
     } else {
       res.json({ err: "Cannot save the order." });
     }
@@ -1117,7 +1521,7 @@ exports.updateOrderStatus = async (req, res) => {
     req.body;
 
   try {
-    const user = await User.findOne({ email }).exec();
+    const user = await getUserByEmail(email, estoreid);
     const orderedUser = await User.findOne({
       _id: new ObjectId(orderedBy),
     }).exec();
@@ -1255,6 +1659,11 @@ exports.updateOrderStatus = async (req, res) => {
               order.products,
             );
           }
+
+          clearMultiItemsCache(estoreid, "adminOrders");
+          if (orderedBy) clearSubItemsCache(orderedBy, estoreid, "userOrders");
+          clearSubItemCache(orderid, estoreid, "order");
+          clearSubItemCache(orderid, estoreid, "order:supplier");
         } else {
           res.json({ err: "Order does not exist." });
         }
@@ -1273,7 +1682,7 @@ exports.updatePaidOrder = async (req, res) => {
   const { orderid, orderStatus, statusHistory, creditHistory, cash } = req.body;
 
   try {
-    const user = await User.findOne({ email }).exec();
+    const user = await getUserByEmail(email, estoreid);
     if (user) {
       const updatePayload = {
         orderStatus,
@@ -1302,6 +1711,12 @@ exports.updatePaidOrder = async (req, res) => {
       );
       if (order) {
         res.json(order);
+
+        clearMultiItemsCache(estoreid, "adminOrders");
+        if (order && order.orderedBy)
+          clearSubItemsCache(order.orderedBy, estoreid, "userOrders");
+        clearSubItemCache(orderid, estoreid, "order");
+        clearSubItemCache(orderid, estoreid, "order:supplier");
       } else {
         res.json({ err: "Order does not exist." });
       }
@@ -1317,7 +1732,7 @@ exports.updateCustomDetails = async (req, res) => {
   const { orderid, customDetails, customDetails2 } = req.body;
 
   try {
-    const user = await User.findOne({ email }).exec();
+    const user = await getUserByEmail(email, estoreid);
     if (user) {
       const order = await Order.findOneAndUpdate(
         {
@@ -1332,6 +1747,12 @@ exports.updateCustomDetails = async (req, res) => {
       );
       if (order) {
         res.json(order);
+
+        clearMultiItemsCache(estoreid, "adminOrders");
+        if (order && order.orderedBy)
+          clearSubItemsCache(order.orderedBy, estoreid, "userOrders");
+        clearSubItemCache(orderid, estoreid, "order");
+        clearSubItemCache(orderid, estoreid, "order:supplier");
       } else {
         res.json({ err: "Order does not exist." });
       }
@@ -1349,7 +1770,7 @@ exports.updateProductRating = async (req, res) => {
   const { orderid, products } = req.body;
 
   try {
-    const user = await User.findOne({ email }).exec();
+    const user = await getUserByEmail(email, estoreid);
     if (user) {
       const order = await Order.findOneAndUpdate(
         {
@@ -1363,6 +1784,12 @@ exports.updateProductRating = async (req, res) => {
       );
       if (order) {
         res.json(order);
+
+        clearMultiItemsCache(estoreid, "adminOrders");
+        if (order && order.orderedBy)
+          clearSubItemsCache(order.orderedBy, estoreid, "userOrders");
+        clearSubItemCache(orderid, estoreid, "order");
+        clearSubItemCache(orderid, estoreid, "order:supplier");
       } else {
         res.json({ err: "Order does not exist." });
       }
@@ -1383,7 +1810,7 @@ exports.voidProducts = async (req, res) => {
   const total = req.body.total;
 
   try {
-    const user = await User.findOne({ email }).exec();
+    const user = await getUserByEmail(email, estoreid);
     if (user) {
       const newOrder = new Order({
         orderType: "void",
@@ -1409,7 +1836,14 @@ exports.voidProducts = async (req, res) => {
 
         await updateOrderedProd(order.products, estoreid, false);
       }
+
       res.json({ ok: true });
+
+      clearMultiItemsCache(estoreid, "adminOrders");
+      if (customer && customer._id)
+        clearSubItemsCache(customer._id, estoreid, "userOrders");
+      if (user && user._id)
+        clearSubItemsCache(user._id, estoreid, "userOrders");
     }
   } catch (error) {
     res.json({ err: "Receiving product failed. " + error.message });
@@ -1422,54 +1856,92 @@ exports.editOrder = async (req, res) => {
   const orderid = req.body.orderid;
 
   try {
-    const user = await User.findOne({ email }).exec();
-    if (user) {
-      const order = await Order.findOne({
-        _id: new ObjectId(orderid),
-        estoreid: new ObjectId(estoreid),
-      }).exec();
-      if (order) {
-        const productsForCart = order.products.map((prod) => ({
-          product: prod.product,
-          count: prod.count,
-          excess: prod.excess,
-          supplierPrice: prod.supplierPrice,
-          price: prod.price,
-        }));
-        const productsForRes = [];
-        for (i = 0; i < order.products.length; i++) {
-          const result = await Product.findOne({
-            _id: new ObjectId(order.products[i].product),
-          })
-            .populate("category")
-            .populate("brand")
-            .exec();
-          productsForRes.push({
-            ...result._doc,
-            count: order.products[i].count,
-          });
-        }
-        await Cart.deleteMany({
-          orderedBy: user._id,
+    const user = await getUserByEmail(email, estoreid);
+
+    if (!user) {
+      return res.json({ err: "Cannot fetch the user." });
+    }
+
+    const order = await Order.findOne({
+      _id: new ObjectId(orderid),
+      estoreid: new ObjectId(estoreid),
+    }).exec();
+
+    if (!order) {
+      return res.json({ err: "Cannot fetch the order." });
+    }
+
+    const productsForCart = order.products.map((prod) => ({
+      product: prod.product,
+      count: prod.count,
+      excess: prod.excess,
+      supplierPrice: prod.supplierPrice,
+      price: prod.price,
+    }));
+
+    const cacheKey = `products:${estoreid}`;
+    const cachedData = await redisClient.get(cacheKey);
+
+    let cachedProducts = [];
+
+    if (cachedData) {
+      try {
+        cachedProducts = JSON.parse(cachedData).products || [];
+      } catch (error) {
+        console.log("Invalid products Redis cache:", error.message);
+        cachedProducts = [];
+      }
+    }
+
+    let productsForRes = [];
+
+    for (const orderProduct of order.products) {
+      const productId = orderProduct.product?.toString();
+
+      let product = cachedProducts.find(
+        (item) => item && item._id?.toString() === productId,
+      );
+
+      if (!product && ObjectId.isValid(productId)) {
+        const productFromDb = await Product.findOne({
+          _id: new ObjectId(productId),
           estoreid: new ObjectId(estoreid),
         }).exec();
 
-        Cart.collection.insertOne({
-          estoreid: new ObjectId(estoreid),
-          products: productsForCart,
-          cartTotal: order.cartTotal,
-          orderedBy: user._id,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          __v: 0,
-        });
-        res.json(productsForRes);
-      } else {
-        res.json({ err: "Cannot fetch the order." });
+        if (productFromDb) {
+          product = productFromDb;
+          cachedProducts.push(
+            productFromDb._doc ? productFromDb._doc : productFromDb,
+          );
+        }
       }
-    } else {
-      res.json({ err: "Cannot fetch the user." });
+
+      if (product) {
+        productsForRes.push({
+          ...(product._doc ? product._doc : product),
+          count: orderProduct.count,
+        });
+      }
     }
+
+    productsForRes = await populateProduct(productsForRes, estoreid);
+
+    await Cart.deleteMany({
+      orderedBy: user._id,
+      estoreid: new ObjectId(estoreid),
+    }).exec();
+
+    await Cart.collection.insertOne({
+      estoreid: new ObjectId(estoreid),
+      products: productsForCart,
+      cartTotal: order.cartTotal,
+      orderedBy: user._id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      __v: 0,
+    });
+
+    res.json(productsForRes);
   } catch (error) {
     res.json({ err: "Editing order fails. " + error.message });
   }
@@ -1487,7 +1959,7 @@ exports.submitEditOrder = async (req, res) => {
   const email = req.user.email;
 
   try {
-    const user = await User.findOne({ email }).exec();
+    const user = await getUserByEmail(email, estoreid);
     if (user) {
       const cart = await Cart.findOne({
         orderedBy: user._id,
@@ -1522,6 +1994,12 @@ exports.submitEditOrder = async (req, res) => {
           });
         }
         res.json({ ok: true });
+
+        clearMultiItemsCache(estoreid, "adminOrders");
+        if (user && user._id)
+          clearSubItemsCache(user._id, estoreid, "userOrders");
+        clearSubItemCache(orderid, estoreid, "order");
+        clearSubItemCache(orderid, estoreid, "order:supplier");
       }
     } else {
       res.json({ err: "Cannot fetch the cart details." });
@@ -1555,6 +2033,12 @@ exports.deleteAdminOrder = async (req, res) => {
       );
     }
     res.json(order);
+
+    clearMultiItemsCache(estoreid, "adminOrders");
+    if (order && order.orderedBy)
+      clearSubItemsCache(order.orderedBy, estoreid, "userOrders");
+    clearSubItemCache(orderid, estoreid, "order");
+    clearSubItemCache(orderid, estoreid, "order:supplier");
   } catch (error) {
     res.json({ err: "Deleting order fails. " + error.message });
   }
@@ -1566,7 +2050,7 @@ exports.deleteOrder = async (req, res) => {
   const orderid = req.params.orderid;
 
   try {
-    const user = await User.findOne({ email }).exec();
+    const user = await getUserByEmail(email, estoreid);
     if (user) {
       const order = await Order.findOneAndDelete({
         _id: new ObjectId(orderid),
@@ -1574,6 +2058,12 @@ exports.deleteOrder = async (req, res) => {
         estoreid: Object(estoreid),
       });
       res.json(order);
+
+      clearMultiItemsCache(estoreid, "adminOrders");
+      if (user && user._id)
+        clearSubItemsCache(user._id, estoreid, "userOrders");
+      clearSubItemCache(orderid, estoreid, "order");
+      clearSubItemCache(orderid, estoreid, "order:supplier");
     } else {
       res.json({ err: "Cannot delete the order." });
     }

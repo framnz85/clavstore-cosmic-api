@@ -9,6 +9,7 @@ const MyAddiv2 = require("../models/myAddiv2");
 const MyAddiv3 = require("../models/myAddiv3");
 
 const { redisClient } = require("../config/redis");
+const { clearMultiItemsCache } = require("./redis/clearing");
 
 exports.listCountry = async (req, res) => {
   const cacheKey = "countries:all";
@@ -290,6 +291,11 @@ exports.copyAllAddiv1 = async (req, res) => {
     }
 
     res.json({ ok: true });
+
+    await redisClient.del(`myNewAdded:${estoreid}`);
+    clearMultiItemsCache(estoreid, "myAddiv1");
+    clearMultiItemsCache(estoreid, "myAddiv2");
+    clearMultiItemsCache(estoreid, "myAddiv3");
   } catch (error) {
     console.log(error.message);
   }
@@ -345,6 +351,11 @@ exports.saveCreatedLocation1 = async (req, res) => {
       });
 
     res.json({ ok: true });
+
+    await redisClient.del(`myNewAdded:${estoreid}`);
+    clearMultiItemsCache(estoreid, "myAddiv1");
+    clearMultiItemsCache(estoreid, "myAddiv2");
+    clearMultiItemsCache(estoreid, "myAddiv3");
   } catch (error) {
     console.log(error.message);
   }
@@ -462,6 +473,11 @@ exports.copyAllAddiv2 = async (req, res) => {
     }
 
     res.json({ ok: true });
+
+    await redisClient.del(`myNewAdded:${estoreid}`);
+    clearMultiItemsCache(estoreid, "myAddiv1");
+    clearMultiItemsCache(estoreid, "myAddiv2");
+    clearMultiItemsCache(estoreid, "myAddiv3");
   } catch (error) {
     console.log(error.message);
   }
@@ -528,6 +544,11 @@ exports.saveCreatedLocation2 = async (req, res) => {
       });
 
     res.json({ ok: true });
+
+    await redisClient.del(`myNewAdded:${estoreid}`);
+    clearMultiItemsCache(estoreid, "myAddiv1");
+    clearMultiItemsCache(estoreid, "myAddiv2");
+    clearMultiItemsCache(estoreid, "myAddiv3");
   } catch (error) {
     console.log(error.message);
   }
@@ -626,6 +647,11 @@ exports.copyAllAddiv3 = async (req, res) => {
     }
 
     res.json({ ok: true });
+
+    await redisClient.del(`myNewAdded:${estoreid}`);
+    clearMultiItemsCache(estoreid, "myAddiv1");
+    clearMultiItemsCache(estoreid, "myAddiv2");
+    clearMultiItemsCache(estoreid, "myAddiv3");
   } catch (error) {
     console.log(error.message);
   }
@@ -704,6 +730,11 @@ exports.saveCreatedLocation3 = async (req, res) => {
     });
 
     res.json({ ok: true });
+
+    await redisClient.del(`myNewAdded:${estoreid}`);
+    clearMultiItemsCache(estoreid, "myAddiv1");
+    clearMultiItemsCache(estoreid, "myAddiv2");
+    clearMultiItemsCache(estoreid, "myAddiv3");
   } catch (error) {
     console.log(error.message);
   }
@@ -787,6 +818,11 @@ exports.saveLocation3 = async (req, res) => {
     });
 
     res.json({ ok: true });
+
+    await redisClient.del(`myNewAdded:${estoreid}`);
+    clearMultiItemsCache(estoreid, "myAddiv1");
+    clearMultiItemsCache(estoreid, "myAddiv2");
+    clearMultiItemsCache(estoreid, "myAddiv3");
   } catch (error) {
     console.log(error.message);
   }
@@ -1017,6 +1053,11 @@ exports.updateMyAddiv3 = async (req, res) => {
       { new: true },
     );
     res.json(updated);
+
+    await redisClient.del(`myNewAdded:${estoreid}`);
+    clearMultiItemsCache(estoreid, "myAddiv1");
+    clearMultiItemsCache(estoreid, "myAddiv2");
+    clearMultiItemsCache(estoreid, "myAddiv3");
   } catch (error) {
     res.status(400).send("Updating location failed.");
   }
@@ -1032,6 +1073,11 @@ exports.deleteAddiv3 = async (req, res) => {
     }).exec();
 
     res.json({ ok: true });
+
+    await redisClient.del(`myNewAdded:${estoreid}`);
+    clearMultiItemsCache(estoreid, "myAddiv1");
+    clearMultiItemsCache(estoreid, "myAddiv2");
+    clearMultiItemsCache(estoreid, "myAddiv3");
   } catch (error) {
     res.status(400).send("Location delete failed.");
   }
@@ -1052,6 +1098,11 @@ exports.deleteAddiv2 = async (req, res) => {
     }).exec();
 
     res.json({ ok: true });
+
+    await redisClient.del(`myNewAdded:${estoreid}`);
+    clearMultiItemsCache(estoreid, "myAddiv1");
+    clearMultiItemsCache(estoreid, "myAddiv2");
+    clearMultiItemsCache(estoreid, "myAddiv3");
   } catch (error) {
     res.status(400).send("Location delete failed.");
   }
@@ -1077,6 +1128,11 @@ exports.deleteAddiv1 = async (req, res) => {
     }).exec();
 
     res.json({ ok: true });
+
+    await redisClient.del(`myNewAdded:${estoreid}`);
+    clearMultiItemsCache(estoreid, "myAddiv1");
+    clearMultiItemsCache(estoreid, "myAddiv2");
+    clearMultiItemsCache(estoreid, "myAddiv3");
   } catch (error) {
     res.status(400).send("Location delete failed.");
   }

@@ -14,10 +14,7 @@ const { populateProduct } = require("./common");
 
 const { redisClient } = require("../config/redis");
 const { getUserByEmail } = require("./auth");
-const {
-  clearProductsCache,
-  clearMultiItemsCache,
-} = require("./redis/clearing");
+const { clearOneItemCache, clearMultiItemsCache } = require("./redis/clearing");
 
 exports.randomItems = async (req, res) => {
   const count = parseInt(req.params.count);
@@ -524,7 +521,7 @@ exports.addProduct = async (req, res) => {
         product = await populateProduct([product], estoreid);
         res.json(product[0]);
 
-        clearProductsCache(estoreid);
+        clearOneItemCache(estoreid, "products");
         clearMultiItemsCache(estoreid, "adminItems");
         clearMultiItemsCache(estoreid, "searchProduct");
       }
@@ -839,7 +836,7 @@ exports.updateProduct = async (req, res) => {
 
     res.json(product[0]);
 
-    clearProductsCache(estoreid);
+    clearOneItemCache(estoreid, "products");
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "searchProduct");
   } catch (error) {
@@ -886,7 +883,7 @@ exports.receiveProducts = async (req, res) => {
     }
     res.json({ ok: true });
 
-    clearProductsCache(estoreid);
+    clearOneItemCache(estoreid, "products");
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "searchProduct");
   } catch (error) {
@@ -1011,7 +1008,7 @@ exports.importProducts = async (req, res) => {
     }
     res.json({ ok: true });
 
-    clearProductsCache(estoreid);
+    clearOneItemCache(estoreid, "products");
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "searchProduct");
   } catch (error) {
@@ -1032,7 +1029,7 @@ exports.updateWaitingProduct = async (req, res) => {
     );
     res.json({ ok: true });
 
-    clearProductsCache(estoreid);
+    clearOneItemCache(estoreid, "products");
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "searchProduct");
   } catch (error) {
@@ -1052,7 +1049,7 @@ exports.deleteProduct = async (req, res) => {
       product = await populateProduct([product], estoreid);
       res.json(product[0]);
 
-      clearProductsCache(estoreid);
+      clearOneItemCache(estoreid, "products");
       clearMultiItemsCache(estoreid, "adminItems");
       clearMultiItemsCache(estoreid, "reviews");
       clearMultiItemsCache(estoreid, "searchProduct");
@@ -1078,7 +1075,7 @@ exports.deleteWaitingProduct = async (req, res) => {
     );
     res.json({ ok: true });
 
-    clearProductsCache(estoreid);
+    clearOneItemCache(estoreid, "products");
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "reviews");
     clearMultiItemsCache(estoreid, "searchProduct");

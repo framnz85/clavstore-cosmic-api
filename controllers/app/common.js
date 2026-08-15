@@ -26,7 +26,7 @@ exports.createRaffle = async (estoreid, user, order) => {
         raffleDate: estore.raffleDate,
       };
       const raffleCount = Math.floor(
-        parseFloat(order.cartTotal) / parseFloat(estore.raffleEntryAmount)
+        parseFloat(order.cartTotal) / parseFloat(estore.raffleEntryAmount),
       );
 
       const raffleEntries = Array(raffleCount).fill(raffleInsert);
@@ -43,10 +43,40 @@ exports.checkOrderedProd = async (products, estoreid) => {
   for (i = 0; i < products.length; i++) {
     let finalMarkup = 0;
     let finalDiscount = 0;
-    const checkProduct = await Product.findOne({
-      _id: new ObjectId(products[i].product),
-      estoreid: Object(estoreid),
-    });
+
+    const productId = products[i].product;
+    const productCacheKey = `products:${estoreid}`;
+
+    let checkProduct = null;
+
+    const cachedProductsData = await redisClient.get(productCacheKey);
+
+    if (cachedProductsData) {
+      const parsedData = JSON.parse(cachedProductsData);
+
+      const cachedProducts = Array.isArray(parsedData.products)
+        ? parsedData.products
+        : [];
+
+      checkProduct = cachedProducts.find(
+        (product) =>
+          product &&
+          product._id &&
+          product._id.toString() === productId.toString(),
+      );
+    }
+
+    if (!checkProduct) {
+      if (!ObjectId.isValid(productId)) {
+        checkProduct = null;
+      } else {
+        checkProduct = await Product.findOne({
+          _id: new ObjectId(productId),
+          estoreid: new ObjectId(estoreid),
+        }).exec();
+      }
+    }
+
     if (!products[i].excess && checkProduct) {
       if (
         parseFloat(products[i].count) > parseFloat(checkProduct.quantity) &&
@@ -109,10 +139,39 @@ exports.checkOrderedProd = async (products, estoreid) => {
 };
 
 const handleUpdateProd = async (product, estoreid, updateType) => {
-  const checkProduct = await Product.findOne({
-    _id: new ObjectId(product.product),
-    estoreid: Object(estoreid),
-  });
+  const productId = product.product;
+  const productCacheKey = `products:${estoreid}`;
+
+  let checkProduct = null;
+
+  const cachedProductsData = await redisClient.get(productCacheKey);
+
+  if (cachedProductsData) {
+    const parsedData = JSON.parse(cachedProductsData);
+
+    const cachedProducts = Array.isArray(parsedData.products)
+      ? parsedData.products
+      : [];
+
+    checkProduct = cachedProducts.find(
+      (product) =>
+        product &&
+        product._id &&
+        product._id.toString() === productId.toString(),
+    );
+  }
+
+  if (!checkProduct) {
+    if (!ObjectId.isValid(productId)) {
+      checkProduct = null;
+    } else {
+      checkProduct = await Product.findOne({
+        _id: new ObjectId(productId),
+        estoreid: new ObjectId(estoreid),
+      }).exec();
+    }
+  }
+
   if (checkProduct) {
     let finalQty = 0;
     let finalSold = 0;
@@ -136,7 +195,7 @@ const handleUpdateProd = async (product, estoreid, updateType) => {
         quantity: parseFloat(finalQty) > 0 ? parseFloat(finalQty) : 0,
         sold: parseFloat(finalSold) > 0 ? parseFloat(finalSold) : 0,
       },
-      { new: true }
+      { new: true },
     );
 
     if (
@@ -193,7 +252,7 @@ const handleUpdateProd = async (product, estoreid, updateType) => {
           price: newPrice,
           waiting: {},
         },
-        { new: true }
+        { new: true },
       );
     }
   }
@@ -208,16 +267,16 @@ exports.updateOrderedProd = async (products, estoreid, updateType) => {
       let mainExcess = products.filter(
         (prod) =>
           prod.product.toString() === listOfExcess[i].product.toString() &&
-          prod._id.toString() !== listOfExcess[i]._id.toString()
+          prod._id.toString() !== listOfExcess[i]._id.toString(),
       );
       if (mainExcess[0] && mainExcess[0]._id) {
         await handleUpdateProd(mainExcess[0], estoreid, updateType);
         remainingProds = remainingProds.filter(
-          (prod) => prod._id.toString() !== mainExcess[0]._id.toString()
+          (prod) => prod._id.toString() !== mainExcess[0]._id.toString(),
         );
         await handleUpdateProd(listOfExcess[i], estoreid, updateType);
         remainingProds = remainingProds.filter(
-          (prod) => prod._id.toString() !== listOfExcess[i]._id.toString()
+          (prod) => prod._id.toString() !== listOfExcess[i]._id.toString(),
         );
       }
     }

@@ -5,33 +5,84 @@ const Category = require("../models/category");
 const Estore = require("../models/estore");
 const Product = require("../models/product");
 
+const { redisClient } = require("../config/redis");
+const { clearOneItemCache } = require("./redis/clearing");
+
 exports.getCategory = async (req, res) => {
   const catid = req.params.catid;
   const estoreid = req.headers.estoreid;
+  const redisKey = `categories:${estoreid}`;
+
   try {
-    const category = await Category.findOne({
-      _id: new ObjectId(catid),
+    let category;
+
+    const cachedCategories = await redisClient.get(redisKey);
+
+    if (cachedCategories) {
+      const categories = JSON.parse(cachedCategories);
+
+      category = categories.find((cat) => cat._id.toString() === catid);
+    }
+
+    if (!category) {
+      category = await Category.findOne({
+        _id: new ObjectId(catid),
+        estoreid: new ObjectId(estoreid),
+      }).lean();
+
+      if (!category) {
+        return res.status(404).json({
+          err: "Category not found",
+        });
+      }
+
+      if (!cachedCategories) {
+        const categories = await Category.find({
+          estoreid: new ObjectId(estoreid),
+        }).lean();
+
+        await redisClient.set(redisKey, JSON.stringify(categories), {
+          EX: 604800,
+        });
+      }
+    }
+
+    const countProduct = await Product.countDocuments({
+      category: new ObjectId(catid),
       estoreid: new ObjectId(estoreid),
     });
-    const countProduct = await Product.countDocuments({
-      category: new ObjectId(category._id),
-      estoreid: new ObjectId(estoreid),
-    }).exec();
+
     res.json({
-      ...category._doc,
+      ...category,
       itemcount: countProduct,
     });
   } catch (error) {
-    res.json({ err: "Getting category fails. " + error.message });
+    res.json({
+      err: "Getting category fails. " + error.message,
+    });
   }
 };
 
 exports.getCategories = async (req, res) => {
   const estoreid = req.headers.estoreid;
+  const redisKey = `categories:${estoreid}`;
+
   try {
-    let categories = await Category.find({
+    const cachedCategories = await redisClient.get(redisKey);
+
+    if (cachedCategories) {
+      return res.json(JSON.parse(cachedCategories));
+    }
+
+    const categories = await Category.find({
       estoreid: new ObjectId(estoreid),
-    }).exec();
+    })
+      .lean()
+      .exec();
+
+    await redisClient.set(redisKey, JSON.stringify(categories), {
+      EX: 604800,
+    });
 
     res.json(categories);
   } catch (error) {
@@ -96,6 +147,8 @@ exports.addCategory = async (req, res) => {
     const category = new Category({ name, slug, images, estoreid });
     await category.save();
     res.json(category);
+
+    clearOneItemCache(estoreid, "categories");
   } catch (error) {
     res.json({ err: "Adding category fails. " + error.message });
   }
@@ -126,12 +179,14 @@ exports.updateCategory = async (req, res) => {
       },
     ).exec();
 
-    const countProduct = await Product.find({
-      category: new ObjectId(catid),
+    const countProduct = await Product.countDocuments({
+      category: new ObjectId(category._id),
       estoreid: new ObjectId(estoreid),
     }).exec();
 
-    res.json({ ...category._doc, itemcount: countProduct.length });
+    res.json({ ...category._doc, itemcount: countProduct });
+
+    clearOneItemCache(estoreid, "categories");
   } catch (error) {
     res.json({ err: "Updating category fails. " + error.message });
   }
@@ -186,6 +241,8 @@ exports.importCategories = async (req, res) => {
       }
     }
     res.json({ ok: true });
+
+    clearOneItemCache(estoreid, "categories");
   } catch (error) {
     res.json({ err: "Importing categories failed. " + error.message });
   }
@@ -199,7 +256,10 @@ exports.removeCategory = async (req, res) => {
       _id: new ObjectId(catid),
       estoreid: new ObjectId(estoreid),
     }).exec();
+
     res.json(category);
+
+    clearOneItemCache(estoreid, "categories");
   } catch (error) {
     res.json({ err: "Deleting category fails. " + error.message });
   }
