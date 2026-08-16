@@ -14,7 +14,11 @@ const { populateProduct } = require("./common");
 
 const { redisClient } = require("../config/redis");
 const { getUserByEmail } = require("./auth");
-const { clearOneItemCache, clearMultiItemsCache } = require("./redis/clearing");
+const {
+  clearOneItemCache,
+  clearMultiItemsCache,
+  clearSubItemCache,
+} = require("./redis/clearing");
 
 exports.randomItems = async (req, res) => {
   const count = parseInt(req.params.count);
@@ -91,7 +95,7 @@ exports.getProductBySlug = async (req, res) => {
   const estoreid = req.headers.estoreid;
 
   try {
-    const cacheKey = `products:${estoreid}`;
+    const cacheKey = `product:${estoreid}:${slug || prodid}`;
     const cachedData = await redisClient.get(cacheKey);
     const cachedProducts = cachedData ? JSON.parse(cachedData).products : [];
 
@@ -169,7 +173,7 @@ exports.getProductById = async (req, res) => {
   const estoreid = req.headers.estoreid;
 
   try {
-    const cacheKey = `products:${estoreid}`;
+    const cacheKey = `product:${estoreid}:${prodid}`;
     const cachedData = await redisClient.get(cacheKey);
     const cachedProducts = cachedData ? JSON.parse(cachedData).products : [];
 
@@ -206,7 +210,7 @@ exports.itemsByBarcode = async (req, res) => {
   const purpose = req.headers.purpose;
 
   try {
-    const cacheKey = `products:${estoreid}`;
+    const cacheKey = `product:${estoreid}:${barcode}`;
     const cachedData = await redisClient.get(cacheKey);
     const cachedProducts = cachedData ? JSON.parse(cachedData).products : [];
 
@@ -839,6 +843,12 @@ exports.updateProduct = async (req, res) => {
     clearOneItemCache(estoreid, "products");
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "searchProduct");
+    if (product && product._id)
+      clearSubItemCache(product._id, estoreid, "product");
+    if (product && product.slug)
+      clearSubItemCache(product.slug, estoreid, "product");
+    if (product && product.barcode)
+      clearSubItemCache(product.barcode, estoreid, "product");
   } catch (error) {
     res.json({ err: "Updating product failed. " + error.message });
   }
@@ -886,6 +896,7 @@ exports.receiveProducts = async (req, res) => {
     clearOneItemCache(estoreid, "products");
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "searchProduct");
+    clearMultiItemsCache(estoreid, "product");
   } catch (error) {
     res.json({ err: "Receiving product failed. " + error.message });
   }
@@ -1011,6 +1022,7 @@ exports.importProducts = async (req, res) => {
     clearOneItemCache(estoreid, "products");
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "searchProduct");
+    clearMultiItemsCache(estoreid, "product");
   } catch (error) {
     res.json({ err: "Importing product failed. " + error.message });
   }
@@ -1032,6 +1044,7 @@ exports.updateWaitingProduct = async (req, res) => {
     clearOneItemCache(estoreid, "products");
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "searchProduct");
+    clearMultiItemsCache(estoreid, "product");
   } catch (error) {
     res.json({ err: "Updating the waiting product failed. " + error.message });
   }
@@ -1053,6 +1066,12 @@ exports.deleteProduct = async (req, res) => {
       clearMultiItemsCache(estoreid, "adminItems");
       clearMultiItemsCache(estoreid, "reviews");
       clearMultiItemsCache(estoreid, "searchProduct");
+      if (product && product._id)
+        clearSubItemCache(product._id, estoreid, "product");
+      if (product && product.slug)
+        clearSubItemCache(product.slug, estoreid, "product");
+      if (product && product.barcode)
+        clearSubItemCache(product.barcode, estoreid, "product");
     } else {
       res.json({ err: "Product does not exist in the system." });
     }
@@ -1065,7 +1084,7 @@ exports.deleteWaitingProduct = async (req, res) => {
   const waitid = req.params.waitid;
   const estoreid = req.headers.estoreid;
   try {
-    await Product.findOneAndUpdate(
+    let product = await Product.findOneAndUpdate(
       {
         _id: new ObjectId(waitid),
         estoreid: new ObjectId(estoreid),
@@ -1079,6 +1098,12 @@ exports.deleteWaitingProduct = async (req, res) => {
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "reviews");
     clearMultiItemsCache(estoreid, "searchProduct");
+    if (product && product._id)
+      clearSubItemCache(product._id, estoreid, "product");
+    if (product && product.slug)
+      clearSubItemCache(product.slug, estoreid, "product");
+    if (product && product.barcode)
+      clearSubItemCache(product.barcode, estoreid, "product");
   } catch (error) {
     res.json({ err: "Updating the waiting product failed. " + error.message });
   }
