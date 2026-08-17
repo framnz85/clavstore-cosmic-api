@@ -844,7 +844,7 @@ exports.updateProduct = async (req, res) => {
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "searchProduct");
     if (product && product._id)
-      clearSubItemCache(product._id, estoreid, "product");
+      clearSubItemCache(product._id.toString(), estoreid, "product");
     if (product && product.slug)
       clearSubItemCache(product.slug, estoreid, "product");
     if (product && product.barcode)
@@ -1067,7 +1067,7 @@ exports.deleteProduct = async (req, res) => {
       clearMultiItemsCache(estoreid, "reviews");
       clearMultiItemsCache(estoreid, "searchProduct");
       if (product && product._id)
-        clearSubItemCache(product._id, estoreid, "product");
+        clearSubItemCache(product._id.toString(), estoreid, "product");
       if (product && product.slug)
         clearSubItemCache(product.slug, estoreid, "product");
       if (product && product.barcode)
@@ -1099,7 +1099,7 @@ exports.deleteWaitingProduct = async (req, res) => {
     clearMultiItemsCache(estoreid, "reviews");
     clearMultiItemsCache(estoreid, "searchProduct");
     if (product && product._id)
-      clearSubItemCache(product._id, estoreid, "product");
+      clearSubItemCache(product._id.toString(), estoreid, "product");
     if (product && product.slug)
       clearSubItemCache(product.slug, estoreid, "product");
     if (product && product.barcode)
