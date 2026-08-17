@@ -843,12 +843,13 @@ exports.updateProduct = async (req, res) => {
     clearOneItemCache(estoreid, "products");
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "searchProduct");
-    if (product && product._id)
-      clearSubItemCache(product._id.toString(), estoreid, "product");
-    if (product && product.slug)
-      clearSubItemCache(product.slug, estoreid, "product");
-    if (product && product.barcode)
-      clearSubItemCache(product.barcode, estoreid, "product");
+    clearMultiItemsCache(estoreid, "product");
+    // if (product && product._id)
+    //   clearSubItemCache(product._id.toString(), estoreid, "product");
+    // if (product && product.slug)
+    //   clearSubItemCache(product.slug, estoreid, "product");
+    // if (product && product.barcode)
+    //   clearSubItemCache(product.barcode, estoreid, "product");
   } catch (error) {
     res.json({ err: "Updating product failed. " + error.message });
   }
@@ -1066,12 +1067,13 @@ exports.deleteProduct = async (req, res) => {
       clearMultiItemsCache(estoreid, "adminItems");
       clearMultiItemsCache(estoreid, "reviews");
       clearMultiItemsCache(estoreid, "searchProduct");
-      if (product && product._id)
-        clearSubItemCache(product._id.toString(), estoreid, "product");
-      if (product && product.slug)
-        clearSubItemCache(product.slug, estoreid, "product");
-      if (product && product.barcode)
-        clearSubItemCache(product.barcode, estoreid, "product");
+      clearMultiItemsCache(estoreid, "product");
+      // if (product && product._id)
+      //   clearSubItemCache(product._id.toString(), estoreid, "product");
+      // if (product && product.slug)
+      //   clearSubItemCache(product.slug, estoreid, "product");
+      // if (product && product.barcode)
+      //   clearSubItemCache(product.barcode, estoreid, "product");
     } else {
       res.json({ err: "Product does not exist in the system." });
     }
@@ -1098,12 +1100,13 @@ exports.deleteWaitingProduct = async (req, res) => {
     clearMultiItemsCache(estoreid, "adminItems");
     clearMultiItemsCache(estoreid, "reviews");
     clearMultiItemsCache(estoreid, "searchProduct");
-    if (product && product._id)
-      clearSubItemCache(product._id.toString(), estoreid, "product");
-    if (product && product.slug)
-      clearSubItemCache(product.slug, estoreid, "product");
-    if (product && product.barcode)
-      clearSubItemCache(product.barcode, estoreid, "product");
+    clearMultiItemsCache(estoreid, "product");
+    // if (product && product._id)
+    //   clearSubItemCache(product._id.toString(), estoreid, "product");
+    // if (product && product.slug)
+    //   clearSubItemCache(product.slug, estoreid, "product");
+    // if (product && product.barcode)
+    //   clearSubItemCache(product.barcode, estoreid, "product");
   } catch (error) {
     res.json({ err: "Updating the waiting product failed. " + error.message });
   }
