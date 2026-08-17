@@ -95,7 +95,7 @@ exports.getProductBySlug = async (req, res) => {
   const estoreid = req.headers.estoreid;
 
   try {
-    const cacheKey = `product:${estoreid}:${slug || prodid}`;
+    const cacheKey = `product:${estoreid}:${slug || prodid.toString()}`;
     const cachedData = await redisClient.get(cacheKey);
     const cachedProducts = cachedData ? JSON.parse(cachedData).products : [];
 
@@ -144,7 +144,7 @@ exports.getProductReviews = async (req, res) => {
   const estoreid = req.headers.estoreid;
 
   try {
-    const cacheKey = `reviews:${estoreid}:${prodid}`;
+    const cacheKey = `reviews:${estoreid}:${prodid.toString()}`;
     const cachedData = await redisClient.get(cacheKey);
 
     if (cachedData) {
