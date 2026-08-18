@@ -138,9 +138,10 @@ exports.addBrand = async (req, res) => {
   try {
     const brand = new Brand({ name, slug, images, estoreid });
     await brand.save();
-    res.json(brand);
 
-    clearOneItemCache(estoreid, "brands");
+    await clearOneItemCache(estoreid, "brands");
+
+    res.json(brand);
   } catch (error) {
     res.json({ err: "Adding brand fails. " + error.message });
   }
@@ -176,9 +177,9 @@ exports.updateBrand = async (req, res) => {
       estoreid: new ObjectId(estoreid),
     }).exec();
 
-    res.json({ ...brand._doc, itemcount: countProduct });
+    await clearOneItemCache(estoreid, "brands");
 
-    clearOneItemCache(estoreid, "brands");
+    res.json({ ...brand._doc, itemcount: countProduct });
   } catch (error) {
     res.json({ err: "Updating brand fails. " + error.message });
   }
@@ -232,9 +233,10 @@ exports.importBrands = async (req, res) => {
         }
       }
     }
-    res.json({ ok: true });
 
-    clearOneItemCache(estoreid, "brands");
+    await clearOneItemCache(estoreid, "brands");
+
+    res.json({ ok: true });
   } catch (error) {
     res.json({ err: "Importing brands failed. " + error.message });
   }
@@ -249,9 +251,9 @@ exports.removeBrand = async (req, res) => {
       estoreid: new ObjectId(estoreid),
     }).exec();
 
-    res.json(brand);
+    await clearOneItemCache(estoreid, "brands");
 
-    clearOneItemCache(estoreid, "brands");
+    res.json(brand);
   } catch (error) {
     res.json({ err: "Deleting brand fails. " + error.message });
   }

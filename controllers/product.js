@@ -324,6 +324,15 @@ exports.loadInitProducts = async (req, res) => {
             { new: true },
           );
         });
+
+        await clearOneItemCache(estoreid, "products");
+        await clearMultiItemsCache(estoreid, "adminItems");
+        await clearMultiItemsCache(estoreid, "searchProduct");
+        await clearMultiItemsCache(estoreid, "product");
+
+        await clearOneItemCache(estoreid, "categories");
+        await clearOneItemCache(estoreid, "brands");
+
         res.json({ ok: true });
       }
     } else {
@@ -523,11 +532,12 @@ exports.addProduct = async (req, res) => {
         });
         await product.save();
         product = await populateProduct([product], estoreid);
-        res.json(product[0]);
 
-        clearOneItemCache(estoreid, "products");
-        clearMultiItemsCache(estoreid, "adminItems");
-        clearMultiItemsCache(estoreid, "searchProduct");
+        await clearOneItemCache(estoreid, "products");
+        await clearMultiItemsCache(estoreid, "adminItems");
+        await clearMultiItemsCache(estoreid, "searchProduct");
+
+        res.json(product[0]);
       }
     } else {
       res.json({
@@ -737,13 +747,13 @@ exports.submitRating = async (req, res) => {
       { new: true },
     );
 
+    await clearMultiItemsCache(estoreid, "reviews");
+
     res.json({
       ratings: finalRating,
       ratingCount: finalRatingCount,
       rateDefault,
     });
-
-    clearMultiItemsCache(estoreid, "reviews");
   } catch (error) {
     res.json({ err: "Submitting product rating failed. " + error.message });
   }
@@ -838,18 +848,12 @@ exports.updateProduct = async (req, res) => {
 
     product = await populateProduct([product], estoreid);
 
-    res.json(product[0]);
+    await clearOneItemCache(estoreid, "products");
+    await clearMultiItemsCache(estoreid, "adminItems");
+    await clearMultiItemsCache(estoreid, "searchProduct");
+    await clearMultiItemsCache(estoreid, "product");
 
-    clearOneItemCache(estoreid, "products");
-    clearMultiItemsCache(estoreid, "adminItems");
-    clearMultiItemsCache(estoreid, "searchProduct");
-    clearMultiItemsCache(estoreid, "product");
-    // if (product && product._id)
-    //   clearSubItemCache(product._id.toString(), estoreid, "product");
-    // if (product && product.slug)
-    //   clearSubItemCache(product.slug, estoreid, "product");
-    // if (product && product.barcode)
-    //   clearSubItemCache(product.barcode, estoreid, "product");
+    res.json(product[0]);
   } catch (error) {
     res.json({ err: "Updating product failed. " + error.message });
   }
@@ -892,12 +896,13 @@ exports.receiveProducts = async (req, res) => {
         );
       }
     }
-    res.json({ ok: true });
 
-    clearOneItemCache(estoreid, "products");
-    clearMultiItemsCache(estoreid, "adminItems");
-    clearMultiItemsCache(estoreid, "searchProduct");
-    clearMultiItemsCache(estoreid, "product");
+    await clearOneItemCache(estoreid, "products");
+    await clearMultiItemsCache(estoreid, "adminItems");
+    await clearMultiItemsCache(estoreid, "searchProduct");
+    await clearMultiItemsCache(estoreid, "product");
+
+    res.json({ ok: true });
   } catch (error) {
     res.json({ err: "Receiving product failed. " + error.message });
   }
@@ -1018,12 +1023,13 @@ exports.importProducts = async (req, res) => {
         }
       }
     }
-    res.json({ ok: true });
 
-    clearOneItemCache(estoreid, "products");
-    clearMultiItemsCache(estoreid, "adminItems");
-    clearMultiItemsCache(estoreid, "searchProduct");
-    clearMultiItemsCache(estoreid, "product");
+    await clearOneItemCache(estoreid, "products");
+    await clearMultiItemsCache(estoreid, "adminItems");
+    await clearMultiItemsCache(estoreid, "searchProduct");
+    await clearMultiItemsCache(estoreid, "product");
+
+    res.json({ ok: true });
   } catch (error) {
     res.json({ err: "Importing product failed. " + error.message });
   }
@@ -1040,12 +1046,13 @@ exports.updateWaitingProduct = async (req, res) => {
       { waiting: req.body },
       { new: true },
     );
-    res.json({ ok: true });
 
-    clearOneItemCache(estoreid, "products");
-    clearMultiItemsCache(estoreid, "adminItems");
-    clearMultiItemsCache(estoreid, "searchProduct");
-    clearMultiItemsCache(estoreid, "product");
+    await clearOneItemCache(estoreid, "products");
+    await clearMultiItemsCache(estoreid, "adminItems");
+    await clearMultiItemsCache(estoreid, "searchProduct");
+    await clearMultiItemsCache(estoreid, "product");
+
+    res.json({ ok: true });
   } catch (error) {
     res.json({ err: "Updating the waiting product failed. " + error.message });
   }
@@ -1061,19 +1068,14 @@ exports.deleteProduct = async (req, res) => {
     }).exec();
     if (product) {
       product = await populateProduct([product], estoreid);
-      res.json(product[0]);
 
-      clearOneItemCache(estoreid, "products");
-      clearMultiItemsCache(estoreid, "adminItems");
-      clearMultiItemsCache(estoreid, "reviews");
-      clearMultiItemsCache(estoreid, "searchProduct");
-      clearMultiItemsCache(estoreid, "product");
-      // if (product && product._id)
-      //   clearSubItemCache(product._id.toString(), estoreid, "product");
-      // if (product && product.slug)
-      //   clearSubItemCache(product.slug, estoreid, "product");
-      // if (product && product.barcode)
-      //   clearSubItemCache(product.barcode, estoreid, "product");
+      await clearOneItemCache(estoreid, "products");
+      await clearMultiItemsCache(estoreid, "adminItems");
+      await clearMultiItemsCache(estoreid, "reviews");
+      await clearMultiItemsCache(estoreid, "searchProduct");
+      await clearMultiItemsCache(estoreid, "product");
+
+      res.json(product[0]);
     } else {
       res.json({ err: "Product does not exist in the system." });
     }
@@ -1094,19 +1096,14 @@ exports.deleteWaitingProduct = async (req, res) => {
       { waiting: {} },
       { new: true },
     );
-    res.json({ ok: true });
 
-    clearOneItemCache(estoreid, "products");
-    clearMultiItemsCache(estoreid, "adminItems");
-    clearMultiItemsCache(estoreid, "reviews");
-    clearMultiItemsCache(estoreid, "searchProduct");
-    clearMultiItemsCache(estoreid, "product");
-    // if (product && product._id)
-    //   clearSubItemCache(product._id.toString(), estoreid, "product");
-    // if (product && product.slug)
-    //   clearSubItemCache(product.slug, estoreid, "product");
-    // if (product && product.barcode)
-    //   clearSubItemCache(product.barcode, estoreid, "product");
+    await clearOneItemCache(estoreid, "products");
+    await clearMultiItemsCache(estoreid, "adminItems");
+    await clearMultiItemsCache(estoreid, "reviews");
+    await clearMultiItemsCache(estoreid, "searchProduct");
+    await clearMultiItemsCache(estoreid, "product");
+
+    res.json({ ok: true });
   } catch (error) {
     res.json({ err: "Updating the waiting product failed. " + error.message });
   }

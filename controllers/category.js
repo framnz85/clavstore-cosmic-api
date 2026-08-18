@@ -146,9 +146,10 @@ exports.addCategory = async (req, res) => {
   try {
     const category = new Category({ name, slug, images, estoreid });
     await category.save();
-    res.json(category);
 
-    clearOneItemCache(estoreid, "categories");
+    await clearOneItemCache(estoreid, "categories");
+
+    res.json(category);
   } catch (error) {
     res.json({ err: "Adding category fails. " + error.message });
   }
@@ -184,9 +185,9 @@ exports.updateCategory = async (req, res) => {
       estoreid: new ObjectId(estoreid),
     }).exec();
 
-    res.json({ ...category._doc, itemcount: countProduct });
+    await clearOneItemCache(estoreid, "categories");
 
-    clearOneItemCache(estoreid, "categories");
+    res.json({ ...category._doc, itemcount: countProduct });
   } catch (error) {
     res.json({ err: "Updating category fails. " + error.message });
   }
@@ -240,9 +241,10 @@ exports.importCategories = async (req, res) => {
         }
       }
     }
-    res.json({ ok: true });
 
-    clearOneItemCache(estoreid, "categories");
+    await clearOneItemCache(estoreid, "categories");
+
+    res.json({ ok: true });
   } catch (error) {
     res.json({ err: "Importing categories failed. " + error.message });
   }
@@ -257,9 +259,9 @@ exports.removeCategory = async (req, res) => {
       estoreid: new ObjectId(estoreid),
     }).exec();
 
-    res.json(category);
+    await clearOneItemCache(estoreid, "categories");
 
-    clearOneItemCache(estoreid, "categories");
+    res.json(category);
   } catch (error) {
     res.json({ err: "Deleting category fails. " + error.message });
   }
