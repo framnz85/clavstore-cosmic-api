@@ -835,7 +835,7 @@ exports.listMyCountry = async (req, res) => {
     const cacheKey = `myCountry:${estoreid}`;
     const cachedCountries = await redisClient.get(cacheKey);
 
-    if (cachedCountries) {
+    if (cachedCountries && JSON.parse(cachedCountries).length > 0) {
       return res.json(JSON.parse(cachedCountries));
     }
 
