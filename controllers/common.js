@@ -8,6 +8,7 @@ const Estore = require("../models/estore");
 const MyAddiv3 = require("../models/myAddiv3");
 
 const { redisClient } = require("../config/redis");
+const { clearOneItemCache, clearMultiItemsCache } = require("./redis/clearing");
 
 exports.populateProduct = async (products, estoreid) => {
   let categories = [];
@@ -517,6 +518,11 @@ exports.updateOrderedProd = async (products, estoreid, updateType) => {
   for (i = 0; i < remainingProds.length; i++) {
     await handleUpdateProd(remainingProds[i], estoreid, updateType);
   }
+
+  await clearOneItemCache(estoreid, "products");
+  await clearMultiItemsCache(estoreid, "adminItems");
+  await clearMultiItemsCache(estoreid, "searchProduct");
+  await clearMultiItemsCache(estoreid, "product");
 };
 
 exports.populateWishlist = async (wishlist, estoreid) => {
@@ -655,4 +661,12 @@ exports.updateOrderedWareProd = async (
       updateType,
     );
   }
+  await clearOneItemCache(frmestoreid, "products");
+  await clearOneItemCache(toestoreid, "products");
+  await clearMultiItemsCache(frmestoreid, "adminItems");
+  await clearMultiItemsCache(toestoreid, "adminItems");
+  await clearMultiItemsCache(frmestoreid, "searchProduct");
+  await clearMultiItemsCache(toestoreid, "searchProduct");
+  await clearMultiItemsCache(frmestoreid, "product");
+  await clearMultiItemsCache(toestoreid, "product");
 };

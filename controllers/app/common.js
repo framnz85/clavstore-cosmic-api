@@ -4,6 +4,10 @@ const Product = require("../../models/product");
 const Estore = require("../../models/estore");
 
 const { redisClient } = require("../../config/redis");
+const {
+  clearOneItemCache,
+  clearMultiItemsCache,
+} = require("../redis/clearing");
 
 exports.createRaffle = async (estoreid, user, order) => {
   try {
@@ -287,4 +291,9 @@ exports.updateOrderedProd = async (products, estoreid, updateType) => {
   for (i = 0; i < remainingProds.length; i++) {
     await handleUpdateProd(remainingProds[i], estoreid, updateType);
   }
+
+  await clearOneItemCache(estoreid, "products");
+  await clearMultiItemsCache(estoreid, "adminItems");
+  await clearMultiItemsCache(estoreid, "searchProduct");
+  await clearMultiItemsCache(estoreid, "product");
 };
