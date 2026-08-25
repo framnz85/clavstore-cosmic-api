@@ -49,143 +49,188 @@ exports.updateCart = async (req, res) => {
   const { cart } = req.body;
   const estoreid = req.headers.estoreid;
   const email = req.user.email;
+
   let products = [];
 
   try {
     const user = await User.findOne({ email }).exec();
-    if (user) {
-      let showWaiting = false;
-      let waitingProduct = { title: "", quantity: 0 };
-      for (let i = 0; i < cart.length; i++) {
-        let object = {};
 
-        object.product = cart[i].product;
-        object.count = cart[i].count;
-        object.excess = cart[i].excess ? true : false;
+    if (!user) {
+      return res.json({
+        err: "Cannot fetch the cart details.",
+      });
+    }
 
-        const productId = cart[i]._id;
-        const cacheKey = `products:${estoreid}`;
+    let showWaiting = false;
 
-        let productFromDb = null;
+    let waitingProduct = {
+      title: "",
+      quantity: 0,
+    };
 
-        const cachedData = await redisClient.get(cacheKey);
+    for (let i = 0; i < cart.length; i++) {
+      let object = {};
 
-        if (cachedData) {
-          const cachedProducts = JSON.parse(cachedData).products || [];
+      object.product = cart[i].product;
+      object.count = cart[i].count;
+      object.excess = cart[i].excess ? true : false;
+
+      const productId = cart[i].product;
+
+      const cacheKey = `products:${estoreid}`;
+
+      let productFromDb = null;
+
+      const cachedData = await redisClient.get(cacheKey);
+
+      if (cachedData) {
+        try {
+          const parsedCache = JSON.parse(cachedData);
+
+          const cachedProducts = parsedCache.products || [];
 
           productFromDb = cachedProducts.find(
             (product) =>
               product &&
               product._id &&
+              productId &&
               product._id.toString() === productId.toString(),
           );
-        }
-
-        if (!productFromDb && ObjectId.isValid(productId)) {
-          productFromDb = await Product.findOne({
-            _id: new ObjectId(productId),
-            estoreid: new ObjectId(estoreid),
-          }).exec();
-        }
-
-        object.supplierPrice = cart[i].excess
-          ? cart[i].supplierPrice
-          : productFromDb.supplierPrice;
-        let price = 0;
-        if (cart[i].priceChange || cart[i].excess) {
-          price = cart[i].price;
-        } else {
-          if (
-            productFromDb.wprice &&
-            productFromDb.wprice > 0 &&
-            cart[i].count >= productFromDb.wcount
-          ) {
-            price = productFromDb.wprice;
-          } else {
-            price = productFromDb.price;
-          }
-        }
-        object.price = price;
-        cart[i] = { ...cart[i], price };
-
-        if (
-          productFromDb &&
-          productFromDb.segregate &&
-          productFromDb.quantity < object.count
-        ) {
-          object.excessCount =
-            parseFloat(object.count) - parseFloat(productFromDb.quantity);
-        }
-
-        products.push(productFromDb);
-
-        if (
-          !cart[i].excess &&
-          !productFromDb.segregate &&
-          (!productFromDb.quantity || productFromDb.quantity < object.count)
-        ) {
-          waitingProduct = {
-            ...productFromDb._doc,
-            excessCount:
-              parseFloat(object.count) - parseFloat(productFromDb.quantity),
-          };
-          showWaiting = true;
-        }
-
-        if (
-          !cart[i].excess &&
-          productFromDb.segregate &&
-          productFromDb &&
-          productFromDb.waiting &&
-          productFromDb.waiting._id &&
-          (!productFromDb.quantity || productFromDb.quantity < object.count)
-        ) {
-          waitingProduct = {
-            ...productFromDb._doc,
-            excessCount:
-              parseFloat(object.count) - parseFloat(productFromDb.quantity),
-          };
-          showWaiting = true;
-        }
-
-        const newQuantity =
-          productFromDb &&
-          productFromDb.waiting &&
-          productFromDb.waiting.newQuantity
-            ? productFromDb.waiting.newQuantity
-            : 0;
-
-        if (
-          cart[i].excess &&
-          !productFromDb.segregate &&
-          newQuantity < object.count
-        ) {
-          waitingProduct = {
-            ...cart[i],
-            quantity: newQuantity,
-          };
-          showWaiting = false;
+        } catch (redisParseError) {
+          console.log(
+            "Redis product cache parse error:",
+            redisParseError.message,
+          );
         }
       }
-      if (!waitingProduct._id) {
-        res.json({ cart, products });
-      } else {
-        res.json({
-          err:
-            waitingProduct.title +
-            " with price @ " +
-            waitingProduct.price +
-            " has " +
-            waitingProduct.quantity +
-            " in stock only",
-          waitingProduct: showWaiting ? waitingProduct : {},
+
+      if (!productFromDb && ObjectId.isValid(productId)) {
+        productFromDb = await Product.findOne({
+          _id: new ObjectId(productId),
+          estoreid: new ObjectId(estoreid),
+        }).exec();
+      }
+
+      if (!productFromDb) {
+        console.log("Product not found:", {
+          productId,
+          estoreid,
+          cartItem: cart[i],
+        });
+
+        return res.json({
+          err: `Product ${productId} could not be found.`,
+          productId,
         });
       }
-    } else {
-      res.json({ err: "Cannot fetch the cart details." });
+
+      object.supplierPrice = cart[i].excess
+        ? cart[i].supplierPrice
+        : productFromDb.supplierPrice;
+
+      let price = 0;
+
+      if (cart[i].priceChange || cart[i].excess) {
+        price = cart[i].price;
+      } else {
+        if (
+          productFromDb.wprice &&
+          productFromDb.wprice > 0 &&
+          cart[i].count >= productFromDb.wcount
+        ) {
+          price = productFromDb.wprice;
+        } else {
+          price = productFromDb.price;
+        }
+      }
+
+      object.price = price;
+
+      cart[i] = {
+        ...cart[i],
+        price,
+      };
+
+      if (productFromDb.segregate && productFromDb.quantity < object.count) {
+        object.excessCount =
+          parseFloat(object.count) - parseFloat(productFromDb.quantity || 0);
+      }
+
+      products.push(productFromDb);
+
+      if (
+        !cart[i].excess &&
+        !productFromDb.segregate &&
+        (!productFromDb.quantity || productFromDb.quantity < object.count)
+      ) {
+        waitingProduct = {
+          ...productFromDb._doc,
+          excessCount:
+            parseFloat(object.count) - parseFloat(productFromDb.quantity || 0),
+        };
+
+        showWaiting = true;
+      }
+
+      if (
+        !cart[i].excess &&
+        productFromDb.segregate &&
+        productFromDb.waiting &&
+        productFromDb.waiting._id &&
+        (!productFromDb.quantity || productFromDb.quantity < object.count)
+      ) {
+        waitingProduct = {
+          ...productFromDb._doc,
+          excessCount:
+            parseFloat(object.count) - parseFloat(productFromDb.quantity || 0),
+        };
+
+        showWaiting = true;
+      }
+
+      const newQuantity =
+        productFromDb.waiting && productFromDb.waiting.newQuantity
+          ? productFromDb.waiting.newQuantity
+          : 0;
+
+      if (
+        cart[i].excess &&
+        !productFromDb.segregate &&
+        newQuantity < object.count
+      ) {
+        waitingProduct = {
+          ...cart[i],
+          quantity: newQuantity,
+        };
+
+        showWaiting = false;
+      }
     }
+
+    if (!waitingProduct._id) {
+      return res.json({
+        cart,
+        products,
+      });
+    }
+
+    return res.json({
+      err:
+        waitingProduct.title +
+        " with price @ " +
+        waitingProduct.price +
+        " has " +
+        waitingProduct.quantity +
+        " in stock only",
+
+      waitingProduct: showWaiting ? waitingProduct : {},
+    });
   } catch (error) {
-    res.json({ err: "Fetching cart fails. " + error.message });
+    console.error("updateCart error:", error);
+
+    return res.json({
+      err: "Fetching cart fails. " + error.message,
+    });
   }
 };
 
