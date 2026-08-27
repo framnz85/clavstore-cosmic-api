@@ -10,6 +10,7 @@ const Order = require("../models/order");
 const Cashflow = require("../models/cashflow");
 
 const {
+  populateProduct,
   createRaffle,
   checkOrderedProd,
   updateOrderedProd,
@@ -1950,6 +1951,7 @@ exports.editOrder = async (req, res) => {
 
     res.json(productsForRes);
   } catch (error) {
+    consoel.log(1);
     res.json({ err: "Editing order fails. " + error.message });
   }
 };
