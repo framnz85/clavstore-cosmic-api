@@ -1943,7 +1943,7 @@ exports.editOrder = async (req, res) => {
       estoreid: new ObjectId(estoreid),
       products: productsForCart,
       cartTotal: order.cartTotal,
-      orderedBy: user._id,
+      orderedBy: new ObjectId(user._id),
       createdAt: new Date(),
       updatedAt: new Date(),
       __v: 0,
