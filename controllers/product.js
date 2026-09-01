@@ -48,19 +48,6 @@ exports.randomItems = async (req, res) => {
     ) {
       const freshProducts = await Product.aggregate([
         { $match: { activate: true, estoreid: new ObjectId(estoreid) } },
-        {
-          $project: {
-            estoreid: 1,
-            title: 1,
-            slug: 1,
-            discount: 1,
-            discounttype: 1,
-            price: 1,
-            images: 1,
-            rateGroup: 1,
-            activate: 1,
-          },
-        },
         { $sample: { size: count } },
       ]).exec();
 
