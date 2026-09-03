@@ -7,9 +7,11 @@ const jobListSchema = new mongoose.Schema(
     code: {
       type: String,
       index: true,
-      unique: true,
       uppercase: true,
       trim: true,
+    },
+    images: {
+      type: Array,
     },
     title: {
       type: String,
@@ -68,6 +70,9 @@ const jobListSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+// unique only within the same estore
+jobListSchema.index({ estoreid: 1, code: 1 }, { unique: true });
 
 // text index for search
 jobListSchema.index(

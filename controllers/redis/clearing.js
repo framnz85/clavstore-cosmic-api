@@ -20,7 +20,7 @@ exports.clearMultiItemsCache = async (estoreid, cacheName) => {
         COUNT: 100,
       });
 
-      cursor = result.cursor;
+      cursor = String(result.cursor);
 
       if (result.keys && result.keys.length > 0) {
         await redisClient.del(result.keys);
@@ -43,7 +43,7 @@ exports.clearSubItemsCache = async (subid, estoreid, cacheName) => {
         COUNT: 100,
       });
 
-      cursor = result.cursor;
+      cursor = String(result.cursor);
 
       if (result.keys && result.keys.length > 0) {
         await redisClient.del(result.keys);

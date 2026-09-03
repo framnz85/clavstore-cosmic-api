@@ -71,6 +71,10 @@ const estoreSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    showJobListing: {
+      type: Boolean,
+      default: true,
+    },
     orderChange: {
       type: Number,
       default: 0,

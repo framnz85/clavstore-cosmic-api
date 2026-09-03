@@ -1,5 +1,20 @@
 const ObjectId = require("mongoose").Types.ObjectId;
 const JobList = require("../models/jobList");
+const { redisClient } = require("../config/redis");
+const { clearOneItemCache, clearMultiItemsCache } = require("./redis/clearing");
+
+const getJobListCacheKey = (estoreid) => `jobLists:${estoreid}`;
+const getJobListSearchCacheKey = (
+  estoreid,
+  sortkey,
+  sort,
+  currentPage,
+  pageSize,
+  searchQuery,
+) =>
+  `jobListsSearch:${estoreid}:${sortkey}:${sort}:${currentPage}:${pageSize}:${searchQuery || "all"}`;
+
+const getJobListByIdCacheKey = (estoreid, id) => `jobList:${estoreid}:${id}`;
 
 exports.createJobList = async (req, res) => {
   const estoreid = req.headers.estoreid;
@@ -25,19 +40,30 @@ exports.createJobList = async (req, res) => {
     });
 
     const saved = await jobList.save();
+
+    await clearOneItemCache(estoreid, "jobLists");
+    await clearMultiItemsCache(estoreid, "jobListsSearch");
+
     res
       .status(201)
       .json({ message: "Job list created successfully", data: saved });
   } catch (error) {
     res
       .status(500)
-      .json({ message: "Error creating job list", error: error.message });
+      .json({ message: "Error creating job list" + error.message });
   }
 };
 
 exports.getAllJobLists = async (req, res) => {
   const estoreid = req.headers.estoreid;
+  const cacheKey = getJobListCacheKey(estoreid);
+
   try {
+    const cachedJobLists = await redisClient.get(cacheKey);
+    if (cachedJobLists) {
+      return res.status(200).json(JSON.parse(cachedJobLists));
+    }
+
     const { search, isActive } = req.query;
     let filter = { estoreid: new ObjectId(estoreid) };
 
@@ -52,6 +78,11 @@ exports.getAllJobLists = async (req, res) => {
     const jobLists = await query
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
+
+    await redisClient.set(cacheKey, JSON.stringify(jobLists), {
+      EX: 86400,
+    });
+
     res.status(200).json(jobLists);
   } catch (error) {
     res
@@ -62,8 +93,15 @@ exports.getAllJobLists = async (req, res) => {
 
 exports.getJobListById = async (req, res) => {
   const estoreid = req.headers.estoreid;
+  const { id } = req.params;
+  const cacheKey = getJobListByIdCacheKey(estoreid, id);
+
   try {
-    const { id } = req.params;
+    const cachedJobList = await redisClient.get(cacheKey);
+    if (cachedJobList) {
+      return res.status(200).json(JSON.parse(cachedJobList));
+    }
+
     const jobList = await JobList.findOne({
       _id: new ObjectId(id),
       estoreid: new ObjectId(estoreid),
@@ -72,6 +110,10 @@ exports.getJobListById = async (req, res) => {
     if (!jobList) {
       return res.status(404).json({ message: "Job list not found" });
     }
+
+    await redisClient.set(cacheKey, JSON.stringify(jobList), {
+      EX: 86400,
+    });
 
     res.status(200).json(jobList);
   } catch (error) {
@@ -110,6 +152,10 @@ exports.updateJobList = async (req, res) => {
       return res.status(404).json({ message: "Job list not found" });
     }
 
+    await clearOneItemCache(estoreid, "jobLists");
+    await clearMultiItemsCache(estoreid, "jobListsSearch");
+    await redisClient.del(getJobListByIdCacheKey(estoreid, id));
+
     res.status(200).json(jobList);
   } catch (error) {
     res
@@ -131,6 +177,10 @@ exports.deleteJobList = async (req, res) => {
       return res.status(404).json({ message: "Job list not found" });
     }
 
+    await clearOneItemCache(estoreid, "jobLists");
+    await clearMultiItemsCache(estoreid, "jobListsSearch");
+    await redisClient.del(getJobListByIdCacheKey(estoreid, id));
+
     res.status(200).json(jobList);
   } catch (error) {
     res
@@ -143,6 +193,19 @@ exports.searchJobList = async (req, res) => {
   const estoreid = req.headers.estoreid;
   try {
     const { sortkey, sort, currentPage, pageSize, searchQuery } = req.body;
+    const cacheKey = getJobListSearchCacheKey(
+      estoreid,
+      sortkey,
+      sort,
+      currentPage,
+      pageSize,
+      searchQuery,
+    );
+
+    const cachedJobs = await redisClient.get(cacheKey);
+    if (cachedJobs) {
+      return res.status(200).json(JSON.parse(cachedJobs));
+    }
 
     const searchObj = { estoreid: new ObjectId(estoreid) };
 
@@ -172,8 +235,13 @@ exports.searchJobList = async (req, res) => {
     }
 
     const countJobs = await JobList.countDocuments(searchObj).exec();
+    const response = { jobs, count: countJobs };
 
-    res.json({ jobs, count: countJobs });
+    await redisClient.set(cacheKey, JSON.stringify(response), {
+      EX: 1800,
+    });
+
+    res.json(response);
   } catch (error) {
     res.json({ err: "Listing product failed. " + error.message });
   }

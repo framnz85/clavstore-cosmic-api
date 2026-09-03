@@ -34,6 +34,23 @@ router.delete(
   jobOrder.deleteJobOrder,
 );
 
+router.post(
+  "/gratis/user-joborders",
+  authCheck,
+  jobOrder.createCustomerJobOrder,
+);
+router.get("/gratis/user-joborders", authCheck, jobOrder.getCustomerJobOrders);
+router.put(
+  "/gratis/user-joborders/:id",
+  authCheck,
+  jobOrder.updateCustomerJobOrder,
+);
+router.delete(
+  "/gratis/user-joborders/:id",
+  authCheck,
+  jobOrder.deleteCustomerJobOrder,
+);
+
 // Routes for managing jobs within an order
 router.post(
   "/gratis/joborders/:id/jobs",
