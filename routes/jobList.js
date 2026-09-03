@@ -9,7 +9,7 @@ router.post(
   adminGratisCheck,
   jobList.createJobList,
 );
-router.get("/gratis/joblists", authCheck, jobList.getAllJobLists);
+router.get("/gratis/joblists", jobList.getAllJobLists);
 router.get(
   "/gratis/joblist/:id",
   authCheck,
