@@ -444,6 +444,10 @@ const estoreSchema = new mongoose.Schema(
     subdomain: String,
     indexing: { type: Boolean, default: false },
     branchStore: { type: Boolean, default: false },
+    rewards: {
+      type: Object,
+      default: { points: 0, amount: 0, redeemed: 0, active: false },
+    },
   },
   { timestamps: true },
 );

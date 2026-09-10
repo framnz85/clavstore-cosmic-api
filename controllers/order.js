@@ -23,6 +23,7 @@ const {
   clearMultiItemsCache,
   clearSubItemsCache,
 } = require("./redis/clearing");
+const { createPoint } = require("./points");
 
 exports.userOrder = async (req, res) => {
   const estoreid = req.headers.estoreid;
@@ -1228,6 +1229,13 @@ exports.saveCartOrder = async (req, res) => {
       if (!estore.orderInitRemarks)
         estore.orderInitRemarks = "Order was created.";
 
+      const grandTotal =
+        Number(cart.cartTotal || 0) +
+        Number(delfee || 0) +
+        Number(servefee || 0) -
+        Number(discount || 0) -
+        Number(addDiscount || 0);
+
       const newOrder = new Order({
         orderCode: cart._id.toString().slice(-12),
         orderType,
@@ -1283,6 +1291,15 @@ exports.saveCartOrder = async (req, res) => {
           await updateOrderedProd(order.products, estoreid, true);
 
           createRaffle(estoreid, user, order);
+
+          checkUser &&
+            checkUser._id &&
+            (await createPoint({
+              estoreid,
+              userid: checkUser._id,
+              amount: grandTotal,
+              orderid: order._id,
+            }));
 
           order.orderStatus === "Completed" &&
             cashFlowEntry(order, estoreid, user, orderType);
@@ -1389,6 +1406,13 @@ exports.saveCartPurchase = async (req, res) => {
     if (!estore.orderInitRemarks)
       estore.orderInitRemarks = "Order was created.";
 
+    const grandTotal =
+      Number(cart.cartTotal || 0) +
+      Number(delfee || 0) +
+      Number(servefee || 0) -
+      Number(discount || 0) -
+      Number(addDiscount || 0);
+
     const newOrder = new Order({
       orderCode: cart._id.toString().slice(-12),
       orderType,
@@ -1440,6 +1464,15 @@ exports.saveCartPurchase = async (req, res) => {
         await updateOrderedProd(order.products, estoreid, true);
 
         createRaffle(estoreid, user, order);
+
+        checkUser &&
+          checkUser._id &&
+          (await createPoint({
+            estoreid,
+            userid: checkUser._id,
+            amount: grandTotal,
+            orderid: order._id,
+          }));
       }
       if (
         orderType === "web" &&
@@ -1635,6 +1668,14 @@ exports.updateOrderStatus = async (req, res) => {
           },
           { new: true },
         );
+
+        const grandTotal =
+          Number(order.cartTotal || 0) +
+          Number(order.delfee || 0) +
+          Number(order.servefee || 0) -
+          Number(order.discount || 0) -
+          Number(order.addDiscount || 0);
+
         if (order) {
           res.json(order);
 
@@ -1652,6 +1693,14 @@ exports.updateOrderStatus = async (req, res) => {
           }
           if (orderType === "web" && order.orderStatus === "Completed") {
             createRaffle(estoreid, orderedUser, order);
+
+            orderedUser.createdBy &&
+              (await createPoint({
+                estoreid,
+                userid: orderedUser.createdBy,
+                amount: grandTotal,
+                orderid: order._id,
+              }));
           }
           if (orderStatus === "Cancelled") {
             removeUpdates(

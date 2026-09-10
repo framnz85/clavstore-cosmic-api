@@ -4,6 +4,63 @@ const md5 = require("md5");
 
 const User = require("../../models/user");
 const Estore = require("../../models/estore");
+const Points = require("../../models/points");
+
+const addUserPointTotals = async (users) => {
+  const userScopes = users
+    .map((user) => {
+      const plainUser =
+        typeof user.toObject === "function" ? user.toObject() : user;
+      const estoreValue = plainUser.estoreid?._id || plainUser.estoreid;
+
+      return plainUser._id && estoreValue
+        ? {
+            userid: new ObjectId(plainUser._id),
+            estoreid: new ObjectId(estoreValue),
+          }
+        : null;
+    })
+    .filter(Boolean);
+
+  if (!userScopes.length) return users;
+
+  const totals = await Points.aggregate([
+    { $match: { $or: userScopes } },
+    {
+      $group: {
+        _id: { userid: "$userid", estoreid: "$estoreid" },
+        totalPoints: { $sum: "$points" },
+        totalRedeem: { $sum: "$redeem" },
+      },
+    },
+  ]);
+
+  const totalsByUser = new Map(
+    totals.map((total) => [
+      `${total._id.userid.toString()}:${total._id.estoreid.toString()}`,
+      total,
+    ]),
+  );
+
+  return users.map((user) => {
+    const plainUser =
+      typeof user.toObject === "function" ? user.toObject() : user;
+    const estoreValue = plainUser.estoreid?._id || plainUser.estoreid;
+    const total = totalsByUser.get(
+      `${plainUser._id.toString()}:${estoreValue.toString()}`,
+    );
+    const totalPoints = total ? total.totalPoints : 0;
+    const totalRedeem = total ? total.totalRedeem : 0;
+
+    return {
+      ...plainUser,
+      points: totalPoints,
+      redeem: totalRedeem,
+      totalPoints,
+      totalRedeem,
+    };
+  });
+};
 
 exports.getUsers = async (req, res) => {
   const estoreid = req.headers.estoreid;
@@ -16,9 +73,11 @@ exports.getUsers = async (req, res) => {
     })
       .skip(page * limit)
       .limit(limit)
+      .select("-password -showPass -verifyCode")
+      .lean()
       .exec();
 
-    res.json(users);
+    res.json(await addUserPointTotals(users));
   } catch (error) {
     res.json({ err: "Getting all users failed." + error.message });
   }
@@ -82,7 +141,7 @@ exports.getUserDetails = async (req, res) => {
       .select("-password -showPass -verifyCode")
       .exec();
     if (users) {
-      res.json(users);
+      res.json(await addUserPointTotals(users));
     }
   } catch (error) {
     res.json({ err: "Fetching user information fails. " + error.message });
@@ -105,7 +164,7 @@ exports.updateUser = async (req, res) => {
         new: true,
       },
     );
-    res.json(user);
+    res.json((await addUserPointTotals([user]))[0]);
   } catch (error) {
     res.json({ err: "Updating user fails. " + error.message });
   }

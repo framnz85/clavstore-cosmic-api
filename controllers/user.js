@@ -4,6 +4,7 @@ const md5 = require("md5");
 const SibApiV3Sdk = require("sib-api-v3-sdk");
 
 const User = require("../models/user");
+const Points = require("../models/points");
 const Estore = require("../models/estore");
 const Product = require("../models/product");
 const Order = require("../models/order");
@@ -45,6 +46,69 @@ const getAccountCounts = async (estoreid) => {
   } catch (error) {
     return {};
   }
+};
+
+const addUserPointTotals = async (userGroups) => {
+  const allUsers = userGroups.flat();
+  const userScopes = allUsers
+    .map((user) => {
+      const plainUser =
+        typeof user.toObject === "function" ? user.toObject() : user;
+      const estoreValue = plainUser.estoreid?._id || plainUser.estoreid;
+
+      return plainUser._id && estoreValue
+        ? {
+            userid: new ObjectId(plainUser._id),
+            estoreid: new ObjectId(estoreValue),
+          }
+        : null;
+    })
+    .filter(Boolean);
+
+  if (!userScopes.length) return userGroups;
+
+  const totals = await Points.aggregate([
+    {
+      $match: {
+        $or: userScopes,
+      },
+    },
+    {
+      $group: {
+        _id: { userid: "$userid", estoreid: "$estoreid" },
+        totalPoints: { $sum: "$points" },
+        totalRedeem: { $sum: "$redeem" },
+      },
+    },
+  ]);
+
+  const totalsByUserId = new Map(
+    totals.map((total) => [
+      `${total._id.userid.toString()}:${total._id.estoreid.toString()}`,
+      total,
+    ]),
+  );
+
+  return userGroups.map((group) =>
+    group.map((user) => {
+      const plainUser =
+        typeof user.toObject === "function" ? user.toObject() : user;
+      const estoreValue = plainUser.estoreid?._id || plainUser.estoreid;
+      const total = totalsByUserId.get(
+        `${plainUser._id.toString()}:${estoreValue.toString()}`,
+      );
+      const totalPoints = total ? total.totalPoints : 0;
+      const totalRedeem = total ? total.totalRedeem : 0;
+
+      return {
+        ...plainUser,
+        points: totalPoints,
+        redeem: totalRedeem,
+        totalPoints,
+        totalRedeem,
+      };
+    }),
+  );
 };
 
 exports.getUserDetails = async (req, res) => {
@@ -148,6 +212,7 @@ exports.getUserDetails = async (req, res) => {
 
     if (user) {
       user = await ensurePromoStart(user);
+      [[user]] = await addUserPointTotals([[user]]);
 
       if (user.wishlist && user.wishlist.length > 0) {
         wishlist = await populateWishlist(user.wishlist, estoreid);
@@ -216,6 +281,7 @@ exports.getUserDetails = async (req, res) => {
 
       if (userWithReseller) {
         userWithReseller = await ensurePromoStart(userWithReseller);
+        [[userWithReseller]] = await addUserPointTotals([[userWithReseller]]);
 
         if (userWithReseller.wishlist && userWithReseller.wishlist.length > 0) {
           wishlist = await populateWishlist(
@@ -617,11 +683,18 @@ exports.getAllUsers = async (req, res) => {
       );
     }
 
+    const [
+      usersWithPoints,
+      usersWithPointsModerators,
+      usersWithPointsCashiers,
+      usersWithPointsCustomers,
+    ] = await addUserPointTotals([admins, moderators, cashiers, customers]);
+
     return res.json({
-      admins,
-      moderators,
-      cashiers,
-      customers,
+      admins: usersWithPoints,
+      moderators: usersWithPointsModerators,
+      cashiers: usersWithPointsCashiers,
+      customers: usersWithPointsCustomers,
       count: countCustomers,
     });
   } catch (error) {
@@ -675,6 +748,7 @@ exports.createNewUser = async (req, res) => {
           password: md5(req.body.password),
           showPass: req.body.password,
           role: req.body.role,
+          image: req.body.image,
           address: req.body.address,
           estoreid: new ObjectId(estoreid),
           resellid: new ObjectId(resellid),
@@ -686,6 +760,7 @@ exports.createNewUser = async (req, res) => {
           password: md5(req.body.password),
           showPass: req.body.password,
           role: req.body.role,
+          image: req.body.image,
           address: req.body.address,
           estoreid: new ObjectId(estoreid),
           resellid: new ObjectId(resellid),

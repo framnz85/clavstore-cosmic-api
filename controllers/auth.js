@@ -4,8 +4,49 @@ const md5 = require("md5");
 
 const Country = require("../models/country");
 const User = require("../models/user");
+const Points = require("../models/points");
 
 const { redisClient } = require("../config/redis");
+
+const addUserPointTotals = async (user, estoreid) => {
+  if (!user || !user._id) return user;
+
+  if (!ObjectId.isValid(estoreid) || !ObjectId.isValid(user._id)) {
+    return {
+      ...user,
+      points: 0,
+      redeem: 0,
+      totalPoints: 0,
+      totalRedeem: 0,
+    };
+  }
+
+  const totals = await Points.aggregate([
+    {
+      $match: {
+        estoreid: new ObjectId(estoreid),
+        userid: new ObjectId(user._id),
+      },
+    },
+    {
+      $group: {
+        _id: "$userid",
+        totalPoints: { $sum: "$points" },
+        totalRedeem: { $sum: "$redeem" },
+      },
+    },
+  ]);
+
+  const total = totals[0] || { totalPoints: 0, totalRedeem: 0 };
+
+  return {
+    ...user,
+    points: total.totalPoints,
+    redeem: total.totalRedeem,
+    totalPoints: total.totalPoints,
+    totalRedeem: total.totalRedeem,
+  };
+};
 
 exports.getUserByEmail = async (email, estoreid) => {
   try {
@@ -16,7 +57,7 @@ exports.getUserByEmail = async (email, estoreid) => {
     if (cachedData) {
       const cachedUser = parsedData.find((u) => u.email === email);
       if (cachedUser) {
-        return cachedUser;
+        return await addUserPointTotals(cachedUser, estoreid);
       }
     }
 
@@ -28,9 +69,15 @@ exports.getUserByEmail = async (email, estoreid) => {
       .exec();
 
     if (user) {
-      await redisClient.set(cacheKey, JSON.stringify(parsedData.concat(user)), {
-        EX: 259200,
-      });
+      const userWithPointTotals = await addUserPointTotals(user, estoreid);
+      await redisClient.set(
+        cacheKey,
+        JSON.stringify(parsedData.concat(userWithPointTotals)),
+        {
+          EX: 259200,
+        },
+      );
+      return userWithPointTotals;
     }
 
     return user;
