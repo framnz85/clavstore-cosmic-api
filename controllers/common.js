@@ -526,10 +526,15 @@ exports.updateOrderedProd = async (products, estoreid, updateType) => {
 };
 
 exports.populateWishlist = async (wishlist, estoreid) => {
-  let prodId = [];
-  wishlist.map((wish) => {
-    prodId.push(wish);
-  });
+  const prodId = (Array.isArray(wishlist) ? wishlist : [])
+    .map((wish) => {
+      if (!wish) return null;
+      return wish._id ? wish._id : wish;
+    })
+    .filter((id) => id && ObjectId.isValid(id))
+    .map((id) => new ObjectId(id));
+
+  if (prodId.length < 1) return [];
 
   const result = await Product.find({
     _id: { $in: prodId },

@@ -872,9 +872,18 @@ exports.addToWishlist = async (req, res) => {
       },
     );
 
+    if (!user) {
+      return res.json({
+        err: "Adding wishlist fails. User is not found on this store.",
+      });
+    }
+
     const wishlist = await populateWishlist(user.wishlist, estoreid);
 
     res.json(wishlist);
+
+    clearOneItemCache(estoreid, "users");
+    clearMultiItemsCache(estoreid, "users");
   } catch (error) {
     res.json({ err: "Adding wishlist fails. " + error.message });
   }
@@ -958,6 +967,16 @@ exports.updateUser = async (req, res) => {
 
   if (email !== req.body.email) {
     objValues = { ...req.body, emailConfirm: false };
+  }
+
+  if (objValues.wishlist) {
+    objValues.wishlist = objValues.wishlist
+      .map((item) => {
+        if (!item) return null;
+        return item._id ? item._id : item;
+      })
+      .filter((id) => id && ObjectId.isValid(id))
+      .map((id) => new ObjectId(id));
   }
 
   try {
