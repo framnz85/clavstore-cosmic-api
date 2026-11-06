@@ -115,9 +115,11 @@ exports.updateProduct = async (req, res) => {
 
     res.json(product);
 
-    clearOneItemCache(estoreid, "products");
-    clearMultiItemsCache(estoreid, "adminItems");
-    clearMultiItemsCache(estoreid, "searchProduct");
+    await clearOneItemCache(estoreid, "products");
+    await clearMultiItemsCache(estoreid, "adminItems");
+    await clearMultiItemsCache(estoreid, "searchProduct");
+    await clearMultiItemsCache(estoreid, "product");
+    await clearMultiItemsCache(estoreid, "products");
   } catch (error) {
     res.json({ err: "Updating a product details failed." + error.message });
   }

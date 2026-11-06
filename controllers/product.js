@@ -316,6 +316,7 @@ exports.loadInitProducts = async (req, res) => {
         await clearMultiItemsCache(estoreid, "adminItems");
         await clearMultiItemsCache(estoreid, "searchProduct");
         await clearMultiItemsCache(estoreid, "product");
+        await clearMultiItemsCache(estoreid, "products");
 
         await clearOneItemCache(estoreid, "categories");
         await clearOneItemCache(estoreid, "brands");
@@ -523,6 +524,8 @@ exports.addProduct = async (req, res) => {
         await clearOneItemCache(estoreid, "products");
         await clearMultiItemsCache(estoreid, "adminItems");
         await clearMultiItemsCache(estoreid, "searchProduct");
+        await clearMultiItemsCache(estoreid, "product");
+        await clearMultiItemsCache(estoreid, "products");
 
         res.json(product[0]);
       }
@@ -839,6 +842,7 @@ exports.updateProduct = async (req, res) => {
     await clearMultiItemsCache(estoreid, "adminItems");
     await clearMultiItemsCache(estoreid, "searchProduct");
     await clearMultiItemsCache(estoreid, "product");
+    await clearMultiItemsCache(estoreid, "products");
 
     res.json(product[0]);
   } catch (error) {
@@ -888,6 +892,7 @@ exports.receiveProducts = async (req, res) => {
     await clearMultiItemsCache(estoreid, "adminItems");
     await clearMultiItemsCache(estoreid, "searchProduct");
     await clearMultiItemsCache(estoreid, "product");
+    await clearMultiItemsCache(estoreid, "products");
 
     res.json({ ok: true });
   } catch (error) {
@@ -1015,6 +1020,7 @@ exports.importProducts = async (req, res) => {
     await clearMultiItemsCache(estoreid, "adminItems");
     await clearMultiItemsCache(estoreid, "searchProduct");
     await clearMultiItemsCache(estoreid, "product");
+    await clearMultiItemsCache(estoreid, "products");
 
     res.json({ ok: true });
   } catch (error) {
@@ -1038,6 +1044,7 @@ exports.updateWaitingProduct = async (req, res) => {
     await clearMultiItemsCache(estoreid, "adminItems");
     await clearMultiItemsCache(estoreid, "searchProduct");
     await clearMultiItemsCache(estoreid, "product");
+    await clearMultiItemsCache(estoreid, "products");
 
     res.json({ ok: true });
   } catch (error) {
@@ -1061,6 +1068,7 @@ exports.deleteProduct = async (req, res) => {
       await clearMultiItemsCache(estoreid, "reviews");
       await clearMultiItemsCache(estoreid, "searchProduct");
       await clearMultiItemsCache(estoreid, "product");
+      await clearMultiItemsCache(estoreid, "products");
 
       res.json(product[0]);
     } else {
@@ -1089,6 +1097,7 @@ exports.deleteWaitingProduct = async (req, res) => {
     await clearMultiItemsCache(estoreid, "reviews");
     await clearMultiItemsCache(estoreid, "searchProduct");
     await clearMultiItemsCache(estoreid, "product");
+    await clearMultiItemsCache(estoreid, "products");
 
     res.json({ ok: true });
   } catch (error) {
