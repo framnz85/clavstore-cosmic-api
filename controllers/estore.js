@@ -1,4 +1,94 @@
 const crypto = require("crypto");
+const storeRegistration = (() => {
+const net = require('net');
+const proxyaddr = require('proxy-addr');
+
+class RegistrationError extends Error {
+  constructor(status, code, message, retryAfter) {
+    super(message); Object.assign(this, { status, code, retryAfter });
+  }
+}
+const fail = (status, code, message) => { throw new RegistrationError(status, code, message); };
+const unavailable = () => fail(503, 'REGISTRATION_UNAVAILABLE', 'Registration is temporarily unavailable. Please try again later.');
+const hash = value => crypto.createHash('sha256').update(value).digest('hex');
+function positive(env, name, fallback) {
+  const n = Number(env[name] === undefined ? fallback : env[name]);
+  if (!Number.isSafeInteger(n) || n < 1) unavailable();
+  return n;
+}
+function validate(body, resellerId) {
+  const id = value => typeof value === 'string' && /^[a-f\d]{24}$/i.test(value);
+  if (!body || Array.isArray(body) || typeof body !== 'object' || !id(resellerId)) fail(400, 'INVALID_REGISTRATION', 'Invalid registration data.');
+  if (Buffer.byteLength(JSON.stringify(body)) > 16384) fail(400, 'INVALID_REGISTRATION', 'Registration data is too large.');
+  if (body.registrationHoneypot !== undefined && (typeof body.registrationHoneypot !== 'string' || body.registrationHoneypot.trim())) fail(400, 'INVALID_REGISTRATION', 'Invalid registration data.');
+  if (typeof body.name !== 'string' || body.name.trim().length < 3 || body.name.trim().length > 80 || /[\x00-\x1f\x7f]/.test(body.name)) fail(400, 'INVALID_REGISTRATION', 'Store name must contain 3 to 80 characters.');
+  if (typeof body.email !== 'string' || body.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim())) fail(400, 'INVALID_REGISTRATION', 'A valid email address is required.');
+  if (!id(body.country) || ['refid', 'upPackage'].some(k => body[k] && !id(body[k]))) fail(400, 'INVALID_REGISTRATION', 'Invalid country, referral, or package identifier.');
+  if (body.reseller !== undefined && (!body.reseller || typeof body.reseller !== 'object' || Array.isArray(body.reseller) || Object.entries(body.reseller).some(([k,v]) => k.startsWith('$') || k.includes('.') || !['string','boolean','number'].includes(typeof v) || (typeof v === 'string' && v.length > 2048)))) fail(400, 'INVALID_REGISTRATION', 'Invalid reseller data.');
+  return { ...body, name: body.name.trim(), email: body.email.trim().toLowerCase() };
+}
+// All counters and their first-attempt TTLs are updated in one Redis execution.
+// The shared hash tag also keeps these keys in one slot on Redis Cluster.
+const LIMIT_SCRIPT = `
+local retry = 0
+for i, key in ipairs(KEYS) do
+  local count = redis.call('INCR', key)
+  local ttl = redis.call('TTL', key)
+  if count == 1 or ttl < 0 then
+    redis.call('EXPIRE', key, tonumber(ARGV[(i-1)*2+2]))
+    ttl = tonumber(ARGV[(i-1)*2+2])
+  end
+  if count > tonumber(ARGV[(i-1)*2+1]) then retry = math.max(retry, ttl, 1) end
+end
+return retry`;
+async function protect(req, body, redis, env = process.env, fetcher = globalThis.fetch) {
+  let ip;
+  try {
+    const trusted = (env.ESTORE_REG_TRUSTED_PROXIES || '').split(',').map(x => x.trim()).filter(Boolean);
+    ip = proxyaddr(req, trusted.length ? proxyaddr.compile(trusted) : () => false);
+    if (!net.isIP(ip)) unavailable();
+    if (ip.startsWith('::ffff:') && net.isIP(ip.slice(7)) === 4) ip = ip.slice(7);
+  } catch (_) { unavailable(); }
+  try {
+    if (!redis.isReady) unavailable();
+    const retry = Number(await redis.eval(LIMIT_SCRIPT, {
+      keys: [`estore-reg:{registration}:ip-hour:${hash(ip)}`, `estore-reg:{registration}:ip-day:${hash(ip)}`, `estore-reg:{registration}:email-day:${hash(body.email)}`],
+      arguments: [String(positive(env,'ESTORE_REG_IP_HOURLY_LIMIT',3)), '3600', String(positive(env,'ESTORE_REG_IP_DAILY_LIMIT',5)), '86400', String(positive(env,'ESTORE_REG_EMAIL_DAILY_LIMIT',2)), '86400']
+    }));
+    if (!Number.isFinite(retry) || retry < 0) unavailable();
+    if (retry > 0) throw new RegistrationError(429, 'REGISTRATION_RATE_LIMIT', 'Too many registration attempts. Please try again later.', Math.ceil(retry));
+  } catch (error) { if (error instanceof RegistrationError) throw error; unavailable(); }
+  const token = req.get('x-turnstile-token');
+  if (typeof token !== 'string' || !token.trim()) fail(400, 'CAPTCHA_REQUIRED', 'Please complete the security challenge.');
+  if (token.length > 2048) fail(400, 'CAPTCHA_INVALID', 'Security challenge failed. Please try again.');
+  if (!env.TURNSTILE_SECRET_KEY) unavailable();
+  let result;
+  try {
+    const response = await fetcher('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: env.TURNSTILE_SECRET_KEY, response: token, remoteip: ip }),
+      signal: AbortSignal.timeout(positive(env, 'TURNSTILE_TIMEOUT_MS', 5000))
+    });
+    if (!response.ok) unavailable();
+    result = await response.json();
+  } catch (_) { unavailable(); }
+  const hosts = (env.TURNSTILE_EXPECTED_HOSTNAMES || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+  const age = Date.now() - Date.parse(result && result.challenge_ts);
+  if (!result || result.success !== true || !Number.isFinite(age) || age < -30000 || age > 300000 || (hosts.length && !hosts.includes(String(result.hostname).toLowerCase())) || (env.TURNSTILE_EXPECTED_ACTION && result.action !== env.TURNSTILE_EXPECTED_ACTION)) fail(400, 'CAPTCHA_INVALID', 'Security challenge expired or failed. Please complete it again.');
+  // Defense in depth: reject reuse even if an upstream verification response is repeated.
+  try {
+    const accepted = await redis.set(`estore-reg:{registration}:captcha:${hash(token)}`, '1', { NX: true, EX: 330 });
+    if (accepted !== 'OK') fail(400, 'CAPTCHA_INVALID', 'Security challenge already used. Please complete it again.');
+  } catch (error) { if (error instanceof RegistrationError) throw error; unavailable(); }
+}
+function respond(res, error) {
+  const safe = error instanceof RegistrationError ? error : new RegistrationError(503, 'REGISTRATION_UNAVAILABLE', 'Registration is temporarily unavailable.');
+  if (safe.retryAfter) res.set('Retry-After', String(safe.retryAfter));
+  return res.status(safe.status).json({ code: safe.code, err: safe.message, error: safe.message });
+}
+return { validate, protect, respond, RegistrationError };
+
+})();
 const ObjectId = require("mongoose").Types.ObjectId;
 const slugify = require("slugify");
 
@@ -368,11 +458,24 @@ exports.createEstore = async (req, res) => {
     return res.status(403).json({ error: "Missing, expired, or invalid store creation code." });
   }
 
+  try {
+    const normalized = storeRegistration.validate(req.body, req.params.resellid);
+    await storeRegistration.protect(req, normalized, redisClient);
+    req.body = normalized;
+  } catch (error) {
+    return storeRegistration.respond(res, error);
+  }
+
   const resellid = req.params.resellid;
   const refid = req.body.refid;
   const upPackage = req.body.upPackage;
   const reseller = req.body.reseller;
   try {
+    // Resolve referrals before any writes so an invalid referral cannot leave a store behind.
+    const referralUser = refid ? await User.findOne({ _id: new ObjectId(refid), role: "admin" }).exec() : null;
+    if (refid && !referralUser) {
+      return res.status(400).json({ code: "INVALID_REFERRAL", err: "Invalid referral." });
+    }
     const checkStoreExist = await Estore.findOne({
       slug: slugify(req.body.name.toString().toLowerCase()),
     });
@@ -429,10 +532,7 @@ exports.createEstore = async (req, res) => {
         await estore.save();
 
         if (refid) {
-          const user = await User.findOne({
-            _id: new ObjectId(refid),
-            role: "admin",
-          }).exec();
+          const user = referralUser;
 
           await Estore.findOneAndUpdate(
             { _id: user.estoreid },
@@ -450,7 +550,8 @@ exports.createEstore = async (req, res) => {
         res.json(estore);
       } else if (checkEmailExist && reseller && reseller.resellerType) {
         if (checkEmailExist.reseller && checkEmailExist.reseller.status) {
-          res.json({
+          res.status(409).json({
+            code: "STORE_EXISTS",
             note: `Your email ${req.body.email} is already has an active reseller account. Login Now!`,
           });
         } else {
@@ -469,17 +570,22 @@ exports.createEstore = async (req, res) => {
           res.json(checkEmailExist);
         }
       } else {
-        res.json({
+        res.status(409).json({
+          code: "STORE_EXISTS",
           err: `Store with an email ${req.body.email} is already existing. Please choose another Email Address.`,
         });
       }
     } else {
-      res.json({
+      res.status(409).json({
+        code: "STORE_EXISTS",
         err: `Store or App with a name ${req.body.name} is already existing. Please choose another Store Name.`,
       });
     }
   } catch (error) {
-    res.json({ err: "Creating store fails. " + error.message });
+    if (error && error.code === 11000) {
+      return res.status(409).json({ code: "STORE_EXISTS", err: "Store already exists. Please choose another name or email." });
+    }
+    return res.status(503).json({ code: "REGISTRATION_UNAVAILABLE", err: "Registration is temporarily unavailable. Please try again later." });
   }
 };
 
@@ -489,6 +595,7 @@ exports.addNewEstore = async (req, res) => {
   try {
     const user = await User.findOne({ email }).exec();
     if (user) {
+      await storeRegistration.protect(req, { email: user.email.trim().toLowerCase() }, redisClient);
       const checkStoreExist = await Estore.findOne({
         slug: slugify(req.body.name.toString().toLowerCase()),
       });
@@ -518,6 +625,7 @@ exports.addNewEstore = async (req, res) => {
       res.json({ err: "Cannot fetch the user." });
     }
   } catch (error) {
+    if (error instanceof storeRegistration.RegistrationError) return storeRegistration.respond(res, error);
     res.json({ err: "Creating store fails. " + error.message });
   }
 };
@@ -529,6 +637,7 @@ exports.copyingEstore = async (req, res) => {
   try {
     const user = await User.findOne({ email }).exec();
     if (user) {
+      await storeRegistration.protect(req, { email: user.email.trim().toLowerCase() }, redisClient);
       const checkStoreExist = await Estore.findOne({
         slug: slugify(req.body.name.toString().toLowerCase()),
       });
@@ -657,6 +766,7 @@ exports.copyingEstore = async (req, res) => {
       res.json({ err: "Cannot fetch the user." });
     }
   } catch (error) {
+    if (error instanceof storeRegistration.RegistrationError) return storeRegistration.respond(res, error);
     res.json({ err: "Creating store fails. " + error.message });
   }
 };
