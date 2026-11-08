@@ -27,18 +27,49 @@ function validate(body, resellerId) {
   if (body.reseller !== undefined && (!body.reseller || typeof body.reseller !== 'object' || Array.isArray(body.reseller) || Object.entries(body.reseller).some(([k,v]) => k.startsWith('$') || k.includes('.') || !['string','boolean','number'].includes(typeof v) || (typeof v === 'string' && v.length > 2048)))) fail(400, 'INVALID_REGISTRATION', 'Invalid reseller data.');
   return { ...body, name: body.name.trim(), email: body.email.trim().toLowerCase() };
 }
-// All counters and their first-attempt TTLs are updated in one Redis execution.
-// The shared hash tag also keeps these keys in one slot on Redis Cluster.
+// Existing IP keys now hold sliding-window sets, bounded to the configured
+// limit. Keeping the most recent N attempts is enough to decide whether the
+// next attempt is allowed, including when rejected attempts keep arriving.
+// All keys retain the shared Redis Cluster hash tag.
+const RATE_RESULT = Symbol('registrationRateResult');
 const LIMIT_SCRIPT = `
+local t = redis.call('TIME')
+local now = tonumber(t[1])*1000 + math.floor(tonumber(t[2])/1000)
 local retry = 0
 for i, key in ipairs(KEYS) do
-  local count = redis.call('INCR', key)
-  local ttl = redis.call('TTL', key)
-  if count == 1 or ttl < 0 then
-    redis.call('EXPIRE', key, tonumber(ARGV[(i-1)*2+2]))
-    ttl = tonumber(ARGV[(i-1)*2+2])
+  local limit = tonumber(ARGV[(i-1)*2+1])
+  local window = tonumber(ARGV[(i-1)*2+2])
+  if i <= 2 then
+    local kind = redis.call('TYPE', key).ok
+    -- Preserve the remaining restriction of counters written by older workers.
+    -- Deployment must replace all workers together: old INCR code cannot read sets.
+    if kind == 'string' then
+      local count = tonumber(redis.call('GET', key)) or 0
+      local ttl = redis.call('PTTL', key)
+      if ttl < 0 then ttl = window*1000 end
+      redis.call('DEL', key)
+      for n=1,math.min(count,limit) do
+        redis.call('ZADD',key,now-window*1000+ttl,'legacy:'..n)
+      end
+    elseif kind ~= 'none' and kind ~= 'zset' then
+      return redis.error_reply('Invalid registration limiter key type')
+    end
+    redis.call('ZREMRANGEBYSCORE',key,'-inf',now-window*1000)
+    redis.call('ZADD',key,now,ARGV[7])
+    local count = redis.call('ZCARD',key)
+    if count > limit then
+      redis.call('ZREMRANGEBYRANK',key,0,count-limit-1)
+      local oldest = redis.call('ZRANGE',key,0,0,'WITHSCORES')
+      retry = math.max(retry,math.max(1,math.ceil((tonumber(oldest[2])+window*1000-now)/1000)))
+    end
+    redis.call('PEXPIRE',key,window*1000)
+  else
+    -- Retain the existing email protection and its original counter format.
+    local count = redis.call('INCR',key)
+    local ttl = redis.call('TTL',key)
+    if count == 1 or ttl < 0 then redis.call('EXPIRE',key,window); ttl=window end
+    if count > limit then retry=math.max(retry,ttl,1) end
   end
-  if count > tonumber(ARGV[(i-1)*2+1]) then retry = math.max(retry, ttl, 1) end
 end
 return retry`;
 async function protect(req, body, redis, env = process.env, fetcher = globalThis.fetch) {
@@ -48,13 +79,26 @@ async function protect(req, body, redis, env = process.env, fetcher = globalThis
     ip = proxyaddr(req, trusted.length ? proxyaddr.compile(trusted) : () => false);
     if (!net.isIP(ip)) unavailable();
     if (ip.startsWith('::ffff:') && net.isIP(ip.slice(7)) === 4) ip = ip.slice(7);
+    if (net.isIP(ip) === 6) ip = new URL('http://['+ip+']/').hostname.slice(1, -1);
   } catch (_) { unavailable(); }
   try {
     if (!redis.isReady) unavailable();
-    const retry = Number(await redis.eval(LIMIT_SCRIPT, {
-      keys: [`estore-reg:{registration}:ip-hour:${hash(ip)}`, `estore-reg:{registration}:ip-day:${hash(ip)}`, `estore-reg:{registration}:email-day:${hash(body.email)}`],
-      arguments: [String(positive(env,'ESTORE_REG_IP_HOURLY_LIMIT',3)), '3600', String(positive(env,'ESTORE_REG_IP_DAILY_LIMIT',5)), '86400', String(positive(env,'ESTORE_REG_EMAIL_DAILY_LIMIT',2)), '86400']
-    }));
+    // Cache the operation on this request so internal retries cannot charge it twice.
+    if (!req[RATE_RESULT]) {
+      req[RATE_RESULT] = (async () => {
+        let timer;
+        try {
+          const operation = redis.eval(LIMIT_SCRIPT, {
+            keys: [`estore-reg:{registration}:ip-hour:${hash(ip)}`, `estore-reg:{registration}:ip-day:${hash(ip)}`, `estore-reg:{registration}:email-day:${hash(body.email)}`],
+            arguments: [String(positive(env,'ESTORE_REG_IP_HOURLY_LIMIT',3)), '3600', String(positive(env,'ESTORE_REG_IP_DAILY_LIMIT',5)), '86400', String(positive(env,'ESTORE_REG_EMAIL_DAILY_LIMIT',2)), '86400', crypto.randomUUID()]
+          });
+          return Number(await Promise.race([operation, new Promise((_,reject) => {
+            timer=setTimeout(() => reject(new Error('Registration limiter timeout')),positive(env,'ESTORE_REG_REDIS_TIMEOUT_MS',3000));
+          })]));
+        } finally { clearTimeout(timer); }
+      })();
+    }
+    const retry = await req[RATE_RESULT];
     if (!Number.isFinite(retry) || retry < 0) unavailable();
     if (retry > 0) throw new RegistrationError(429, 'REGISTRATION_RATE_LIMIT', 'Too many registration attempts. Please try again later.', Math.ceil(retry));
   } catch (error) { if (error instanceof RegistrationError) throw error; unavailable(); }
